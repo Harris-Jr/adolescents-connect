@@ -104,12 +104,11 @@ shadcn/ui, plain JS JSX (no TS)
   (was fake local state); AdminDashboard NAV has Ambassadors link;
   Mande.jsx has Ambassador Activities panel.
   Reviewers: ADMIN + PROGRAMME_ADMIN only. Any learner can apply.
-- Dev accounts for testing (created session 6, remove before prod):
-  - PROGRAMME_ADMIN: phone 0977000001 / AdminPass123!
-  - SCHOOL_ADMIN (Woodlands A): phone 0977000002 / AdminPass123!
-  - Dev DB also has test ambassador data: john doe is an APPROVED
-    ambassador with 1 verified report (75 pts), 1 mission
-    "School Assembly Talk" exists.
+- Test accounts: create one per role via the seed script. Do NOT
+  hardcode credentials in docs or commit them to the repo. The seed
+  can also provision sample ambassador data (an APPROVED ambassador
+  with a verified report and an active mission) for exercising the
+  Ambassador Hub end-to-end.
 
 ### Schema / Migrations (11 total, in order)
 - `20260619090531_init`
