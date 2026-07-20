@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  LEARNER
+  TEACHER
+  SCHOOL_ADMIN
+  PROGRAMME_ADMIN
+  ADMIN
+}
+
+model User {
+  id               String          @id @default(uuid())
+  firstName        String
+  lastName         String
+  email            String?         @unique
+  phone            String          @unique
+  passwordHash     String
+  gender           String?
+  grade            Int?
+  dateOfBirth      DateTime?
+  province         String?
+  district         String?
+  disabilityStatus String?
+  schoolId         String?
+  school           School?         @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  schoolName       String?
+  role             Role            @default(LEARNER)
+  subjects         String[]        @default([])
+  staffId          String?
+  isActive         Boolean         @default(true)
+  onboardingDone   Boolean         @default(false)
+  lastLoginAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  refreshTokens    RefreshToken[]
+  passwordResets   PasswordReset[]
+  clubMemberships    ClubMember[]
+  clubAnnouncements  ClubAnnouncement[]
+  quizAttempts       QuizAttempt[]
+  challengeAttempts  ChallengeAttempt[]
+  chatSessions       ChatSession[]
+  notifications      Notification[]
+  lessonPlans        LessonPlan[]
+  teacherMaterials   TeacherMaterial[]
+  classroomActivities ClassroomActivity[]
+  ambassador         Ambassador?
+}
+
+model Ambassador {
+  id           String             @id @default(uuid())
+  userId       String             @unique
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       String             @default("PENDING") // PENDING | APPROVED | REJECTED | INACTIVE
+  motivation   String
+  bio          String?
+  appliedAt    DateTime           @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+  reports      AmbassadorReport[]
+}
+
+model LeadershipMission {
+  id          String             @id @default(uuid())
+  title       String
+  description String
+  points      Int                @default(50)
+  isActive    Boolean            @default(true)
+  createdById String?
+  createdAt   DateTime           @default(now())
+  reports     AmbassadorReport[]
+}
+
+model AmbassadorReport {
+  id            String             @id @default(uuid())
+  ambassadorId  String
+  ambassador    Ambassador         @relation(fields: [ambassadorId], references: [id], onDelete: Cascade)
+  missionId     String?
+  mission       LeadershipMission? @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  title         String
+  description   String
+  activityDate  DateTime
+  location      String?
+  participants  Int?
+  evidenceUrl   String?
+  status        String             @default("SUBMITTED") // SUBMITTED | VERIFIED | REJECTED
+  pointsAwarded Int                @default(0)
+  createdAt     DateTime           @default(now())
+  reviewedAt    DateTime?
+  reviewedById  String?
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Course {
+  id          String   @id
+  title       String
+  description String
+  subject     String
+  grade       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lessons     Lesson[]
+}
+
+model Lesson {
+  id        String  @id @default(uuid())
+  courseId  String
+  order     Int
+  title     String
+  type      String
+  duration  String?
+  videoUrl  String?
+  body      String?
+  quizId    String?
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model Quiz {
+  id                String     @id
+  title             String
+  subject           String
+  grade             Int
+  createdById       String?
+  pointsPerQuestion Int        @default(10)
+  passMark          Int        @default(60)
+  questions  Question[]
+  attempts   QuizAttempt[]
+}
+
+model Question {
+  id          String @id @default(uuid())
+  quizId      String
+  order       Int
+  text        String
+  options     String[]
+  correct     Int
+  explanation String?
+  quiz        Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model School {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  province  String?
+  district  String?
+  createdAt DateTime @default(now())
+  users     User[]
+  clubs     Club[]
+}
+
+model Club {
+  id          String       @id @default(uuid())
+  name        String
+  category    String
+  description String?
+  school      String?
+  schoolId    String?
+  schoolRef   School?      @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  district    String?
+  province    String?
+  createdAt   DateTime     @default(now())
+  members     ClubMember[]
+  announcements ClubAnnouncement[]
+}
+
+model ClubMember {
+  id       String   @id @default(uuid())
+  clubId   String
+  userId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+  club     Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, userId])
+}
+
+model Challenge {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  points      Int
+  deadline    DateTime
+  subject     String?
+  createdAt   DateTime          @default(now())
+  attempts    ChallengeAttempt[]
+}
+
+model QuizAttempt {
+  id           String   @id @default(uuid())
+  userId       String
+  quizId       String
+  score        Int
+  pointsEarned Int
+  completedAt  DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz         Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model ChallengeAttempt {
+  id           String    @id @default(uuid())
+  userId       String
+  challengeId  String
+  pointsEarned Int
+  completedAt  DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge    Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, challengeId])
+}
+
+model ChatSession {
+  id          String        @id @default(uuid())
+  userId      String?
+  guestName   String?
+  status      String        @default("pending")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages    ChatMessage[]
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String
+  from      String
+  text      String
+  createdAt DateTime    @default(now())
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LessonPlan {
+  id          String   @id @default(uuid())
+  teacherId   String
+  title       String
+  subject     String
+  grade       String
+  description String?
+  objectives  String[] @default([])
+  activities  String[] @default([])
+  createdAt   DateTime @default(now())
+  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+model TeacherMaterial {
+  id          String   @id @default(uuid())
+  teacherId   String
+  title       String
+  type        String
+  subject     String
+  grade       String
+  description String?
+  url         String?
+  status      String   @default("Pending")
+  createdAt   DateTime @default(now())
+  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+model ClassroomActivity {
+  id          String   @id @default(uuid())
+  teacherId   String
+  title       String
+  gradeGroup  String
+  due         String?
+  createdAt   DateTime @default(now())
+  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+model ClubAnnouncement {
+  id        String   @id @default(uuid())
+  clubId    String
+  authorId  String
+  message   String
+  createdAt DateTime @default(now())
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
