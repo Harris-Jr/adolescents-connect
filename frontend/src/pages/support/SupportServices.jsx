@@ -1,26 +1,54 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { useMemo, useState } from "react";
-import { z } from "zod";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Phone, MapPin, Clock, Navigation, Search } from "lucide-react";
-import { SUPPORT_SERVICES, SUPPORT_PROVINCES, SUPPORT_DISTRICTS } from "@/lib/support-data";
-const searchSchema = z.object({ category: z.string().optional() });
+import { apiGet } from "@/lib/api";
+
 function SupportServices() {
   const [searchParams] = useSearchParams();
   const category = searchParams.get("category");
   const [province, setProvince] = useState("");
   const [district, setDistrict] = useState("");
   const [search, setSearch] = useState("");
-  const districts = province ? (SUPPORT_DISTRICTS[province] ?? []) : [];
+
+  const [services, setServices] = useState([]);
+  const [provinces, setProvinces] = useState([]);
+  const [districtsByProvince, setDistrictsByProvince] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    const query = category ? `?category=${encodeURIComponent(category)}` : "";
+    Promise.all([apiGet(`/support/services${query}`), apiGet("/support/meta")])
+      .then(([svc, meta]) => {
+        if (!active) return;
+        setServices(svc.services ?? []);
+        setProvinces(meta.provinces ?? []);
+        setDistrictsByProvince(meta.districts ?? {});
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load services");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [category]);
+
+  const districts = province ? (districtsByProvince[province] ?? []) : [];
   const filtered = useMemo(() => {
-    return SUPPORT_SERVICES.filter((s) => {
-      if (category && s.category !== category) return false;
+    return services.filter((s) => {
       if (province && s.province !== province) return false;
       if (district && s.district !== district) return false;
       const q = search.trim().toLowerCase();
       if (q && !`${s.name} ${s.category} ${s.location}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [category, province, district, search]);
+  }, [services, province, district, search]);
+
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-8 sm:px-6">
       <Link
@@ -50,7 +78,7 @@ function SupportServices() {
               className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-brand-teal"
             >
               <option value="">All Provinces</option>
-              {SUPPORT_PROVINCES.map((p) => (
+              {provinces.map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>
@@ -89,7 +117,15 @@ function SupportServices() {
       </section>
 
       {/* Services list */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="mt-6 space-y-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-28 animate-pulse rounded-3xl bg-muted" />
+          ))}
+        </div>
+      ) : error ? (
+        <p className="mt-12 text-center text-sm font-semibold text-brand-pink">{error}</p>
+      ) : filtered.length === 0 ? (
         <p className="mt-12 text-center text-sm text-muted-foreground">
           No services match your filters.
         </p>
@@ -105,6 +141,9 @@ function SupportServices() {
                   {s.category}
                 </span>
                 <h3 className="mt-2 font-extrabold text-brand-navy">{s.name}</h3>
+                {s.description && (
+                  <p className="mt-1 text-sm text-muted-foreground">{s.description}</p>
+                )}
                 <div className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
                     <MapPin className="h-4 w-4" /> {s.location}

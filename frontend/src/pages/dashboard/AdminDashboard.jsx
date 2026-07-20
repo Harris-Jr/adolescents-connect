@@ -35,20 +35,20 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { toast } from "sonner";
 import { AdminLayout, StatCard, Panel } from "@/components/AdminLayout";
-import { API_URL } from "@/lib/api";
+import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { getAccessToken } from "@/contexts/AuthContext";
-import {
-  NATIONAL_KPIS,
-  MONTHLY_REGISTRATIONS,
-  ACTIVITY_BY_PROVINCE,
-  USERS_BY_ROLE,
-  ADMIN_USERS,
-  ADMIN_SCHOOLS,
-  PENDING_CONTENT,
-  SENT_NOTIFICATIONS,
-  PROVINCES,
-} from "@/lib/admin-data";
+import { PENDING_CONTENT, SENT_NOTIFICATIONS, PROVINCES } from "@/lib/admin-data";
+
+// Pie slice colours by role label (presentation only)
+const ROLE_COLORS = {
+  Learner: "var(--brand-purple)",
+  Teacher: "var(--brand-teal)",
+  "School Admin": "var(--brand-blue)",
+  "Programme Admin": "var(--brand-pink)",
+  Admin: "var(--brand-navy)",
+};
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "users", label: "Users", icon: Users },
@@ -94,38 +94,77 @@ function AdminDashboard() {
   );
 }
 function OverviewSection() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    apiGet("/admin/overview")
+      .then((d) => {
+        if (active) setData(d);
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load overview");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted" />
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-72 animate-pulse rounded-2xl bg-muted" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return <p className="text-sm font-semibold text-brand-pink">{error}</p>;
+  }
+
+  const { kpis, monthlyRegistrations, activityByProvince, usersByRole, recentRegistrations } = data;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard
-          label="Total Users"
-          value={NATIONAL_KPIS.totalUsers.toLocaleString()}
-          icon={Users}
-        />
+        <StatCard label="Total Users" value={kpis.totalUsers.toLocaleString()} icon={Users} />
         <StatCard
           label="Schools"
-          value={NATIONAL_KPIS.schools}
+          value={kpis.schools}
           icon={Building2}
           surface="bg-surface-mint"
           color="text-brand-teal"
         />
         <StatCard
           label="Provinces"
-          value={NATIONAL_KPIS.provinces}
+          value={kpis.provinces}
           icon={Globe2}
           surface="bg-surface-blue"
           color="text-brand-blue"
         />
         <StatCard
           label="Active Clubs"
-          value={NATIONAL_KPIS.activeClubs}
+          value={kpis.activeClubs}
           icon={Trophy}
           surface="bg-surface-yellow"
           color="text-brand-yellow"
         />
         <StatCard
           label="Teachers Trained"
-          value={NATIONAL_KPIS.teachersTrained}
+          value={kpis.teachersTrained}
           icon={GraduationCap}
           surface="bg-surface-peach"
           color="text-brand-pink"
@@ -136,10 +175,10 @@ function OverviewSection() {
         <Panel title="Monthly Registrations">
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={MONTHLY_REGISTRATIONS} margin={{ left: -16, right: 8, top: 8 }}>
+              <LineChart data={monthlyRegistrations} margin={{ left: -16, right: 8, top: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                 <Tooltip />
                 <Line
                   type="monotone"
@@ -155,64 +194,76 @@ function OverviewSection() {
 
         <Panel title="Activity by Province">
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ACTIVITY_BY_PROVINCE} margin={{ left: -16, right: 8, top: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis
-                  dataKey="province"
-                  tick={{ fontSize: 11 }}
-                  interval={0}
-                  angle={-20}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar dataKey="activity" fill="var(--brand-teal)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {activityByProvince.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No province data yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={activityByProvince} margin={{ left: -16, right: 8, top: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="province"
+                    tick={{ fontSize: 11 }}
+                    interval={0}
+                    angle={-20}
+                    textAnchor="end"
+                    height={50}
+                  />
+                  <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="activity" fill="var(--brand-teal)" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Panel>
 
         <Panel title="Users by Role">
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={USERS_BY_ROLE}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={55}
-                  outerRadius={90}
-                  paddingAngle={2}
-                >
-                  {USERS_BY_ROLE.map((d) => (
-                    <Cell key={d.name} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            {usersByRole.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No users yet
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={usersByRole}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={55}
+                    outerRadius={90}
+                    paddingAngle={2}
+                  >
+                    {usersByRole.map((d) => (
+                      <Cell key={d.name} fill={ROLE_COLORS[d.name] ?? "var(--brand-navy)"} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Panel>
 
         <Panel title="Recent Registrations">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs uppercase text-muted-foreground">
-                  <th className="py-2 pr-4 font-bold">Name</th>
-                  <th className="py-2 pr-4 font-bold">Role</th>
-                  <th className="py-2 pr-4 font-bold">Province</th>
-                  <th className="py-2 pr-4 font-bold">Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...ADMIN_USERS]
-                  .sort((a, b) => b.joined.localeCompare(a.joined))
-                  .slice(0, 6)
-                  .map((u) => (
+          {recentRegistrations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No registrations yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                    <th className="py-2 pr-4 font-bold">Name</th>
+                    <th className="py-2 pr-4 font-bold">Role</th>
+                    <th className="py-2 pr-4 font-bold">Province</th>
+                    <th className="py-2 pr-4 font-bold">Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentRegistrations.map((u) => (
                     <tr key={u.id} className="border-b border-border/60">
                       <td className="py-2.5 pr-4 font-semibold text-brand-navy">{u.name}</td>
                       <td className="py-2.5 pr-4">{u.role}</td>
@@ -220,20 +271,42 @@ function OverviewSection() {
                       <td className="py-2.5 pr-4 text-muted-foreground">{u.joined}</td>
                     </tr>
                   ))}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+          )}
         </Panel>
       </div>
     </div>
   );
 }
 function UsersSection() {
-  const [users, setUsers] = useState(ADMIN_USERS);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("all");
   const [province, setProvince] = useState("all");
   const [selected, setSelected] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    apiGet("/admin/users")
+      .then((d) => {
+        if (active) setUsers(d.users ?? []);
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load users");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const filtered = useMemo(
     () =>
       users.filter((u) => {
@@ -249,9 +322,31 @@ function UsersSection() {
   const toggleAll = () => setSelected(allSelected ? [] : filtered.map((u) => u.id));
   const toggleOne = (id) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  const setStatus = (status) => {
-    setUsers((prev) => prev.map((u) => (selected.includes(u.id) ? { ...u, status } : u)));
-    setSelected([]);
+  const setStatus = async (status) => {
+    if (selected.length === 0 || busy) return;
+    setBusy(true);
+    const isActive = status === "active";
+    const ids = [...selected];
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) => apiPatch(`/admin/users/${id}`, { isActive })),
+      );
+      const okIds = new Set();
+      let failures = 0;
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled") okIds.add(ids[i]);
+        else failures += 1;
+      });
+      setUsers((prev) => prev.map((u) => (okIds.has(u.id) ? { ...u, status } : u)));
+      setSelected([]);
+      if (failures > 0) {
+        toast.error(`${failures} update${failures > 1 ? "s" : ""} failed`);
+      } else {
+        toast.success(`${okIds.size} user${okIds.size > 1 ? "s" : ""} ${status === "active" ? "activated" : "deactivated"}`);
+      }
+    } finally {
+      setBusy(false);
+    }
   };
   const exportSelected = () => {
     const rows = users.filter((u) => selected.length === 0 || selected.includes(u.id));
@@ -309,7 +404,7 @@ function UsersSection() {
         </span>
         <button
           type="button"
-          disabled={selected.length === 0}
+          disabled={selected.length === 0 || busy}
           onClick={() => setStatus("active")}
           className="rounded-lg bg-surface-mint px-3 py-1.5 text-xs font-bold text-brand-teal disabled:opacity-40"
         >
@@ -317,7 +412,7 @@ function UsersSection() {
         </button>
         <button
           type="button"
-          disabled={selected.length === 0}
+          disabled={selected.length === 0 || busy}
           onClick={() => setStatus("inactive")}
           className="rounded-lg bg-muted px-3 py-1.5 text-xs font-bold text-foreground disabled:opacity-40"
         >
@@ -334,15 +429,24 @@ function UsersSection() {
       </div>
 
       <div className="overflow-x-auto">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
+        ) : error ? (
+          <p className="py-8 text-center text-sm font-semibold text-brand-pink">{error}</p>
+        ) : filtered.length === 0 ? (
           <div className="rounded-2xl bg-card p-8 text-center shadow-sm">
             <Users className="mx-auto h-12 w-12 text-muted-foreground/40" />
             <p className="mt-3 text-sm font-semibold text-muted-foreground">
-              No registered users yet
+              {users.length === 0 ? "No registered users yet" : "No users match your filters"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {/* TODO: fetch real users from /api/admin/users once accounts are created */}
-              Users will appear here once they sign up
+              {users.length === 0
+                ? "Users will appear here once they sign up"
+                : "Try adjusting your search or filters"}
             </p>
           </div>
         ) : (
@@ -390,25 +494,54 @@ function UsersSection() {
   );
 }
 function SchoolsSection() {
-  const [schools, setSchools] = useState(ADMIN_SCHOOLS);
+  const [schools, setSchools] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({ name: "", district: "", province: "Lusaka" });
-  const addSchool = () => {
-    if (!draft.name.trim() || !draft.district.trim()) return;
-    setSchools((prev) => [
-      ...prev,
-      {
-        id: `S${prev.length + 1}`,
+
+  useEffect(() => {
+    let active = true;
+    apiGet("/admin/schools")
+      .then((d) => {
+        if (active) setSchools(d.schools ?? []);
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load schools");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const addSchool = async () => {
+    if (!draft.name.trim() || !draft.district.trim() || saving) return;
+    setSaving(true);
+    try {
+      const { school } = await apiPost("/admin/schools", {
         name: draft.name.trim(),
         district: draft.district.trim(),
         province: draft.province,
-        learners: 0,
-        teachers: 0,
-        status: "pending",
-      },
-    ]);
-    setDraft({ name: "", district: "", province: "Lusaka" });
-    setShowForm(false);
+      });
+      setSchools((prev) => {
+        // resolve-or-create may return an existing school — de-dupe by id
+        if (prev.some((s) => s.id === school.id)) {
+          return prev.map((s) => (s.id === school.id ? school : s));
+        }
+        return [...prev, school].sort((a, b) => a.name.localeCompare(b.name));
+      });
+      setDraft({ name: "", district: "", province: "Lusaka" });
+      setShowForm(false);
+      toast.success(`School "${school.name}" saved`);
+    } catch (err) {
+      toast.error(err.message || "Failed to save school");
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <Panel
@@ -450,44 +583,63 @@ function SchoolsSection() {
           <button
             type="button"
             onClick={addSchool}
-            className="rounded-lg bg-brand-navy px-3 py-2 text-sm font-bold text-white"
+            disabled={saving}
+            className="rounded-lg bg-brand-navy px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
-            Save School
+            {saving ? "Saving..." : "Save School"}
           </button>
         </div>
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs uppercase text-muted-foreground">
-              <th className="py-2 pr-4 font-bold">Name</th>
-              <th className="py-2 pr-4 font-bold">District</th>
-              <th className="py-2 pr-4 font-bold">Province</th>
-              <th className="py-2 pr-4 font-bold">Learners</th>
-              <th className="py-2 pr-4 font-bold">Teachers</th>
-              <th className="py-2 pr-4 font-bold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schools.map((s) => (
-              <tr key={s.id} className="border-b border-border/60">
-                <td className="py-2.5 pr-4 font-semibold text-brand-navy">{s.name}</td>
-                <td className="py-2.5 pr-4">{s.district}</td>
-                <td className="py-2.5 pr-4">{s.province}</td>
-                <td className="py-2.5 pr-4">{s.learners}</td>
-                <td className="py-2.5 pr-4">{s.teachers}</td>
-                <td className="py-2.5 pr-4">
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusPill[s.status]}`}
-                  >
-                    {s.status}
-                  </span>
-                </td>
-              </tr>
+        {loading ? (
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
             ))}
-          </tbody>
-        </table>
+          </div>
+        ) : error ? (
+          <p className="py-8 text-center text-sm font-semibold text-brand-pink">{error}</p>
+        ) : schools.length === 0 ? (
+          <div className="rounded-2xl bg-card p-8 text-center shadow-sm">
+            <School className="mx-auto h-12 w-12 text-muted-foreground/40" />
+            <p className="mt-3 text-sm font-semibold text-muted-foreground">No schools yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Add a school above, or schools are created automatically when users register.
+            </p>
+          </div>
+        ) : (
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                <th className="py-2 pr-4 font-bold">Name</th>
+                <th className="py-2 pr-4 font-bold">District</th>
+                <th className="py-2 pr-4 font-bold">Province</th>
+                <th className="py-2 pr-4 font-bold">Learners</th>
+                <th className="py-2 pr-4 font-bold">Teachers</th>
+                <th className="py-2 pr-4 font-bold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schools.map((s) => (
+                <tr key={s.id} className="border-b border-border/60">
+                  <td className="py-2.5 pr-4 font-semibold text-brand-navy">{s.name}</td>
+                  <td className="py-2.5 pr-4">{s.district}</td>
+                  <td className="py-2.5 pr-4">{s.province}</td>
+                  <td className="py-2.5 pr-4">{s.learners}</td>
+                  <td className="py-2.5 pr-4">{s.teachers}</td>
+                  <td className="py-2.5 pr-4">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusPill[s.status]}`}
+                    >
+                      {s.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </Panel>
   );
@@ -724,19 +876,33 @@ function NotificationsSection() {
   );
 }
 function ReportsSection() {
-  const exportUsers = () => {
-    const csv = [
-      ["Name", "Role", "Province", "School", "Status", "Joined"],
-      ...ADMIN_USERS.map((u) => [u.name, u.role, u.province, u.school, u.status, u.joined]),
-    ]
-      .map((r) => r.map((c) => `"${c}"`).join(","))
-      .join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "programme-report.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+  const [exporting, setExporting] = useState(false);
+  const exportUsers = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const { users } = await apiGet("/admin/users");
+      if (!users || users.length === 0) {
+        toast.info("No users to export yet");
+        return;
+      }
+      const csv = [
+        ["Name", "Email", "Role", "Province", "School", "Status", "Joined"],
+        ...users.map((u) => [u.name, u.email, u.role, u.province, u.school, u.status, u.joined]),
+      ]
+        .map((r) => r.map((c) => `"${c}"`).join(","))
+        .join("\n");
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "programme-report.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err.message || "Failed to export users");
+    } finally {
+      setExporting(false);
+    }
   };
   return (
     <Panel title="Reports">
@@ -747,9 +913,10 @@ function ReportsSection() {
         <button
           type="button"
           onClick={exportUsers}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-bold text-white"
+          disabled={exporting}
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
         >
-          <Download className="h-4 w-4" /> Export Users (CSV)
+          <Download className="h-4 w-4" /> {exporting ? "Exporting..." : "Export Users (CSV)"}
         </button>
         <button
           type="button"

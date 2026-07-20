@@ -125,7 +125,81 @@ export async function listSessions(req, res) {
   }
 }
 
-// Legacy stub
-export async function listSupportServices(_req, res) {
-  res.json({ services: [] });
+// GET /api/support/services — referral directory (SRS §11)
+// Optional filters: ?category=<title>&province=&district=&q=
+export async function listReferralServices(req, res) {
+  try {
+    const { category, province, district, q } = req.query;
+
+    const where = { isActive: true };
+    if (province) where.province = province;
+    if (district) where.district = district;
+    if (category) where.category = { title: category };
+    if (q?.trim()) {
+      const term = q.trim();
+      where.OR = [
+        { name: { contains: term, mode: "insensitive" } },
+        { location: { contains: term, mode: "insensitive" } },
+        { category: { title: { contains: term, mode: "insensitive" } } },
+      ];
+    }
+
+    const rows = await prisma.referralService.findMany({
+      where,
+      include: { category: { select: { title: true } } },
+      orderBy: [{ is24Hours: "desc" }, { name: "asc" }],
+    });
+
+    const services = rows.map((s) => ({
+      id: s.id,
+      name: s.name,
+      category: s.category.title,
+      province: s.province,
+      district: s.district,
+      location: s.location,
+      phone: s.phone,
+      hours: s.hours,
+      description: s.description,
+      is24Hours: s.is24Hours,
+    }));
+
+    res.json({ services });
+  } catch (err) {
+    console.error("listReferralServices error:", err);
+    res.status(500).json({ error: "Failed to fetch support services" });
+  }
+}
+
+// GET /api/support/meta — categories + province/district options for filters
+export async function listSupportMeta(_req, res) {
+  try {
+    const [categories, services] = await Promise.all([
+      prisma.supportCategory.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, title: true, description: true },
+      }),
+      prisma.referralService.findMany({
+        where: { isActive: true },
+        select: { province: true, district: true },
+      }),
+    ]);
+
+    // Build sorted province list + province→districts map from live data
+    const districtsByProvince = {};
+    for (const { province, district } of services) {
+      if (!districtsByProvince[province]) districtsByProvince[province] = new Set();
+      if (district) districtsByProvince[province].add(district);
+    }
+    const provinces = Object.keys(districtsByProvince).sort();
+    const districts = {};
+    for (const p of provinces) {
+      districts[p] = [...districtsByProvince[p]].sort();
+    }
+
+    res.json({ categories, provinces, districts });
+  } catch (err) {
+    console.error("listSupportMeta error:", err);
+    res.status(500).json({ error: "Failed to fetch support metadata" });
+  }
 }

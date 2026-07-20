@@ -309,3 +309,35 @@ model ClubAnnouncement {
   club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
+
+// ---------- Support / Referral Services (SRS §11) ----------
+
+model SupportCategory {
+  id          String            @id // slug, e.g. "mental-health"
+  title       String
+  description String
+  sortOrder   Int               @default(0)
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  services    ReferralService[]
+}
+
+model ReferralService {
+  id          String          @id @default(uuid())
+  name        String
+  categoryId  String
+  category    SupportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  province    String
+  district    String
+  location    String
+  phone       String
+  hours       String
+  description String?
+  is24Hours   Boolean         @default(false)
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@index([province])
+}

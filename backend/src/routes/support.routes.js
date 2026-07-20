@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
-  listSupportServices,
+  listReferralServices,
+  listSupportMeta,
   startChat,
   sendMessage,
   getMessages,
@@ -11,8 +12,9 @@ import { requireRole } from "../middleware/role.middleware.js";
 
 const router = Router();
 
-// Static services list
-router.get("/services", listSupportServices);
+// Referral directory (SRS §11) — public read, like courses
+router.get("/services", listReferralServices);
+router.get("/meta", listSupportMeta);
 
 // Chat — start is optionally authed (guests can chat too)
 router.post("/chat/start", startChat);

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   HeartPulse,
   Brain,
@@ -15,7 +15,11 @@ import {
   X,
   CheckCircle2,
 } from "lucide-react";
-import { SUPPORT_CATEGORIES, CONTACT_METHODS } from "@/lib/support-data";
+import { apiGet } from "@/lib/api";
+import { CONTACT_METHODS } from "@/lib/support-data";
+
+// Presentation only — icon + colour per category id. Content (title,
+// description) now comes from the API (/api/support/meta).
 const ICONS = {
   "mental-health": Brain,
   srh: HeartPulse,
@@ -24,8 +28,38 @@ const ICONS = {
   "legal-aid": Scale,
   "child-protection": Baby,
 };
+const CATEGORY_STYLES = {
+  "mental-health": { surface: "bg-surface-lavender", text: "text-brand-purple" },
+  srh: { surface: "bg-surface-peach", text: "text-brand-pink" },
+  gbv: { surface: "bg-surface-blue", text: "text-brand-blue" },
+  "substance-abuse": { surface: "bg-surface-mint", text: "text-brand-teal" },
+  "legal-aid": { surface: "bg-surface-yellow", text: "text-brand-navy" },
+  "child-protection": { surface: "bg-surface-lilac", text: "text-brand-purple" },
+};
+const DEFAULT_STYLE = { surface: "bg-muted", text: "text-brand-navy" };
+
 function Support() {
   const [referralOpen, setReferralOpen] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    apiGet("/support/meta")
+      .then((data) => {
+        if (active) setCategories(data.categories ?? []);
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load support services");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
@@ -68,29 +102,45 @@ function Support() {
       </div>
 
       <h2 className="mt-10 text-2xl font-extrabold text-brand-navy">How can we help?</h2>
-      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {SUPPORT_CATEGORIES.map((cat) => {
-          const Icon = ICONS[cat.id];
 
-          return (
-            <article key={cat.id} className="flex flex-col rounded-3xl bg-card p-6 shadow-sm">
-              <span
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl ${cat.surface}`}
-              >
-                <Icon className={`h-6 w-6 ${cat.text}`} />
-              </span>
-              <h3 className="mt-4 font-extrabold text-brand-navy">{cat.title}</h3>
-              <p className="mt-1 flex-1 text-sm text-muted-foreground">{cat.description}</p>
-              <Link
-                to={`/support/services?category=${encodeURIComponent(cat.title)}`}
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-bold text-white transition-transform hover:scale-[1.02]"
-              >
-                Find Services <ArrowRight className="h-4 w-4" />
-              </Link>
-            </article>
-          );
-        })}
-      </div>
+      {loading ? (
+        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-48 animate-pulse rounded-3xl bg-muted" />
+          ))}
+        </div>
+      ) : error ? (
+        <p className="mt-6 text-sm font-semibold text-brand-pink">{error}</p>
+      ) : categories.length === 0 ? (
+        <p className="mt-6 text-sm text-muted-foreground">
+          Support categories will appear here soon.
+        </p>
+      ) : (
+        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {categories.map((cat) => {
+            const Icon = ICONS[cat.id] ?? LifeBuoy;
+            const style = CATEGORY_STYLES[cat.id] ?? DEFAULT_STYLE;
+
+            return (
+              <article key={cat.id} className="flex flex-col rounded-3xl bg-card p-6 shadow-sm">
+                <span
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl ${style.surface}`}
+                >
+                  <Icon className={`h-6 w-6 ${style.text}`} />
+                </span>
+                <h3 className="mt-4 font-extrabold text-brand-navy">{cat.title}</h3>
+                <p className="mt-1 flex-1 text-sm text-muted-foreground">{cat.description}</p>
+                <Link
+                  to={`/support/services?category=${encodeURIComponent(cat.title)}`}
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-bold text-white transition-transform hover:scale-[1.02]"
+                >
+                  Find Services <ArrowRight className="h-4 w-4" />
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <div className="mt-10 grid gap-5 sm:grid-cols-2">
         <Link
@@ -119,11 +169,13 @@ function Support() {
         </Link>
       </div>
 
-      {referralOpen && <ReferralModal onClose={() => setReferralOpen(false)} />}
+      {referralOpen && (
+        <ReferralModal categories={categories} onClose={() => setReferralOpen(false)} />
+      )}
     </main>
   );
 }
-function ReferralModal({ onClose }) {
+function ReferralModal({ categories, onClose }) {
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState("");
   const [situation, setSituation] = useState("");
@@ -156,7 +208,7 @@ function ReferralModal({ onClose }) {
             <h2 className="text-xl font-extrabold text-brand-navy">What do you need help with?</h2>
             <p className="mt-1 text-sm text-muted-foreground">Choose a category to get started.</p>
             <div className="mt-4 grid gap-2">
-              {SUPPORT_CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setCategory(c.title)}

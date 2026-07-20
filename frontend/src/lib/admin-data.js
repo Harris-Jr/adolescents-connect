@@ -1,6 +1,8 @@
-// Admin dashboard reference data
-// Personal/user data has been removed (see STEP 4 of restructuring)
-// Analytics data is empty pending real data from backend
+// Admin dashboard static reference data.
+// User, school and analytics data are now fetched live from /api/admin/*
+// (see AdminDashboard OverviewSection / UsersSection / SchoolsSection).
+// What remains here is genuinely static UI config, plus two placeholder
+// queues for features that do not yet have a backend (see below).
 
 export const PROVINCES = [
   "Central",
@@ -15,57 +17,14 @@ export const PROVINCES = [
   "Western",
 ];
 
-export const SCHOOL_NAME = "Lusaka Central Secondary School";
-
-// TODO: Fetch real learner records from /api/admin/learners once users exist
-export const ADMIN_LEARNERS = [];
-
-// TODO: Fetch real teacher records from /api/admin/teachers once users exist
-export const ADMIN_TEACHERS = [];
-
-// TODO: Fetch real school records from /api/admin/schools once users exist
-export const ADMIN_SCHOOLS = [];
-
-// TODO: Fetch real user records from /api/admin/users once users exist
-export const ADMIN_USERS = [];
-
-// TODO: Fetch pending content from /api/admin/content/pending once teachers upload content
+// NOT YET REAL — Content Approval has no backend model/endpoint. The
+// approve/reject actions in ContentApprovalSection are local-only.
+// TODO: build a content-moderation workflow (TeacherMaterial.status already
+// exists) and fetch the pending queue from the API.
 export const PENDING_CONTENT = [];
 
-// TODO: Fetch notification history from /api/admin/notifications once notifications are sent
+// NOT YET REAL — the notification composer does not send anything. Recipient
+// counts shown after "send" are fabricated in the component.
+// TODO: build a broadcast endpoint (targeting by role/province/school across
+// in-app + SMS + email) and fetch real send history.
 export const SENT_NOTIFICATIONS = [];
-
-// ----- Chart data -----
-
-// TODO: Replace with real data from /api/admin/analytics/registrations
-export const MONTHLY_REGISTRATIONS = [];
-
-// TODO: Replace with real data from /api/admin/analytics/activity-by-province
-export const ACTIVITY_BY_PROVINCE = [];
-
-// TODO: Replace with real data from /api/admin/analytics/users-by-role
-export const USERS_BY_ROLE = [];
-
-// TODO: Replace with real data from /api/admin/analytics/registration-targets
-export const REGISTRATION_TARGETS = [];
-
-// TODO: Replace with real data from /api/admin/analytics/participation-by-province
-export const PARTICIPATION_BY_PROVINCE = [];
-
-// TODO: Replace with real data from /api/admin/analytics/completion-rates
-export const COMPLETION_RATES = [];
-
-// TODO: Replace with real data from /api/admin/analytics/gender-breakdown
-export const GENDER_BREAKDOWN = [];
-
-// TODO: Replace with real data from /api/admin/analytics/club-activity-rates
-export const CLUB_ACTIVITY_RATES = [];
-
-// TODO: Replace with real data from /api/admin/analytics/kpis
-export const NATIONAL_KPIS = {
-  totalUsers: 0,
-  schools: 0,
-  provinces: 0,
-  activeClubs: 0,
-  teachersTrained: 0,
-};

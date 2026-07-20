@@ -21,6 +21,7 @@ import teacherRoutes from "./routes/teacher.routes.js";
 import schoolRoutes from "./routes/school.routes.js";
 import schoolsRoutes from "./routes/schools.routes.js";
 import ambassadorsRoutes from "./routes/ambassadors.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 
 
 const app = express();
@@ -73,6 +74,7 @@ app.use("/api/teacher", teacherRoutes);
 app.use("/api/school", schoolRoutes);
 app.use("/api/schools", schoolsRoutes);
 app.use("/api/ambassadors", ambassadorsRoutes);
+app.use("/api/admin", adminRoutes);
 
 // 404 handler
 app.use((req, res) => {

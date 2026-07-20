@@ -186,6 +186,38 @@ const CHALLENGES = [
   { title: "Leadership Sprint", description: "Complete the Leadership 101 course and lead one activity.", points: 180, subject: "leadership", deadline: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000) },
 ];
 
+// ---------- Support / Referral Services (SRS §11) ----------
+// Categories mirror the UI. Colours/icons stay in the frontend, keyed by id.
+const SUPPORT_CATEGORIES = [
+  { id: "mental-health", title: "Mental Health", sortOrder: 1, description: "Talk to someone about stress, anxiety, depression or anything weighing on your mind." },
+  { id: "srh", title: "Sexual & Reproductive Health", sortOrder: 2, description: "Confidential information and services about your body, relationships and health." },
+  { id: "gbv", title: "Gender-Based Violence", sortOrder: 3, description: "Safe, confidential support if you or someone you know is experiencing violence." },
+  { id: "substance-abuse", title: "Substance Abuse", sortOrder: 4, description: "Help and guidance with alcohol, drugs and other substance-related challenges." },
+  { id: "legal-aid", title: "Legal Aid", sortOrder: 5, description: "Know your rights and get connected to free legal advice and support." },
+  { id: "child-protection", title: "Child Protection", sortOrder: 6, description: "Report abuse or get help to keep yourself and other children safe." },
+];
+
+// IMPORTANT: These are real Zambian organisations. The national toll-free
+// short codes (116 Childline, 933 GBV, 991 emergency) are widely published
+// and stable. Organisation landline numbers and physical addresses are
+// provisional and MUST be verified and signed off by ZCSIF before go-live —
+// an incorrect crisis-line number can send an adolescent to the wrong place.
+const REFERRAL_SERVICES = [
+  { categoryId: "child-protection", name: "Childline Zambia", province: "Lusaka", district: "Lusaka", location: "Nationwide (toll-free)", phone: "116", hours: "24 hours, every day", is24Hours: true, description: "Free, confidential helpline for any child in need of help, advice or protection." },
+  { categoryId: "gbv", name: "GBV National Helpline", province: "Lusaka", district: "Lusaka", location: "Nationwide (toll-free)", phone: "933", hours: "24 hours, every day", is24Hours: true, description: "Toll-free national line for survivors of gender-based violence." },
+  { categoryId: "gbv", name: "Zambia Police Victim Support Unit", province: "Lusaka", district: "Lusaka", location: "Police stations nationwide", phone: "991", hours: "24 hours, every day", is24Hours: true, description: "Report abuse and get protection through the Victim Support Unit at any police station." },
+  { categoryId: "gbv", name: "YWCA Zambia Crisis Centre", province: "Lusaka", district: "Lusaka", location: "Nationalist Road, Lusaka", phone: "+260 211 254 991", hours: "Mon–Fri, 08:00 – 17:00", is24Hours: false, description: "Counselling, shelter and support for survivors of violence." },
+  { categoryId: "srh", name: "Planned Parenthood Association of Zambia (PPAZ)", province: "Lusaka", district: "Lusaka", location: "Chilimbulu Road, Lusaka", phone: "+260 211 228 178", hours: "Mon–Fri, 08:00 – 17:00", is24Hours: false, description: "Confidential sexual and reproductive health information and services for young people." },
+  { categoryId: "srh", name: "Society for Family Health", province: "Copperbelt", district: "Ndola", location: "Broadway, Ndola", phone: "+260 212 620 088", hours: "Mon–Sat, 08:00 – 16:00", is24Hours: false, description: "Youth-friendly reproductive health services and referrals." },
+  { categoryId: "mental-health", name: "Chainama Hills Hospital", province: "Lusaka", district: "Lusaka", location: "Great East Road, Lusaka", phone: "+260 211 291 439", hours: "Mon–Fri, 08:00 – 16:00", is24Hours: false, description: "National referral hospital for mental health assessment and care." },
+  { categoryId: "mental-health", name: "Mental Health Users Network of Zambia (MHUNZA)", province: "Lusaka", district: "Lusaka", location: "Lusaka", phone: "+260 211 234 567", hours: "Mon–Fri, 09:00 – 16:00", is24Hours: false, description: "Peer support and advocacy for people living with mental health conditions." },
+  { categoryId: "mental-health", name: "Chipata Central Hospital Mental Health Unit", province: "Eastern", district: "Chipata", location: "Chipata Central Hospital", phone: "+260 216 221 122", hours: "Mon–Fri, 08:00 – 16:00", is24Hours: false, description: "Mental health assessment and counselling in Eastern Province." },
+  { categoryId: "substance-abuse", name: "Serenity Harm Reduction Programme Zambia", province: "Lusaka", district: "Lusaka", location: "Lusaka", phone: "+260 977 000 000", hours: "Mon–Fri, 09:00 – 18:00", is24Hours: false, description: "Support and rehabilitation for alcohol and drug-related challenges." },
+  { categoryId: "legal-aid", name: "Legal Aid Board", province: "Lusaka", district: "Lusaka", location: "Fairley Road, Lusaka", phone: "+260 211 253 789", hours: "Mon–Fri, 08:00 – 17:00", is24Hours: false, description: "Free legal advice and representation for those who cannot afford it." },
+  { categoryId: "legal-aid", name: "National Legal Aid Clinic for Women", province: "Lusaka", district: "Lusaka", location: "Church Road, Lusaka", phone: "+260 211 221 332", hours: "Mon–Fri, 08:00 – 16:30", is24Hours: false, description: "Free legal help for women and children, including GBV and family matters." },
+  { categoryId: "legal-aid", name: "Legal Resources Foundation", province: "Southern", district: "Livingstone", location: "Mosi-oa-Tunya Road, Livingstone", phone: "+260 213 320 456", hours: "Mon–Fri, 08:30 – 16:30", is24Hours: false, description: "Free legal advice and rights education in Southern Province." },
+];
+
 async function main() {
   console.log("Seeding quizzes...");
   for (const q of QUIZZES) {
@@ -258,6 +290,22 @@ async function main() {
     if (!existing) {
       await prisma.challenge.create({ data: challenge });
     }
+  }
+
+  console.log("Seeding support categories...");
+  for (const cat of SUPPORT_CATEGORIES) {
+    await prisma.supportCategory.upsert({
+      where: { id: cat.id },
+      update: { title: cat.title, description: cat.description, sortOrder: cat.sortOrder },
+      create: cat,
+    });
+  }
+
+  console.log("Seeding referral services...");
+  // Clear + recreate so edits to the list are reflected on re-seed.
+  await prisma.referralService.deleteMany({});
+  for (const svc of REFERRAL_SERVICES) {
+    await prisma.referralService.create({ data: svc });
   }
 
   console.log("Seed complete.");
