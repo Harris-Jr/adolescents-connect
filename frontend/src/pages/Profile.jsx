@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Award, BookOpen, Camera, Download, LockKeyhole, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth, getAccessToken } from "@/contexts/AuthContext";
-import { API_URL } from "@/lib/api";
+import { API_URL, apiGet } from "@/lib/api";
 import { useProgress } from "@/contexts/ProgressContext";
-import { COURSES } from "@/lib/learn-catalog";
 import { FloatingInput } from "@/components/forms/FloatingInput";
 import { FloatingSelect } from "@/components/forms/FloatingSelect";
 import { PasswordInput } from "@/components/forms/PasswordInput";
@@ -24,7 +23,8 @@ const preferenceLabels = [
 ];
 function Profile() {
   const { user, updateUser, isAuthenticated } = useAuth();
-  const { badges, isCourseComplete } = useProgress();
+  const { badges, isCourseComplete, cacheCourses } = useProgress();
+  const [courses, setCourses] = useState([]);
   const [form, setForm] = useState({
     firstName: user?.firstName ?? "",
     lastName: user?.lastName ?? "",
@@ -46,9 +46,26 @@ function Profile() {
   );
   const [language, setLanguage] = useState("English");
   const [privateProfile, setPrivateProfile] = useState(true);
+  useEffect(() => {
+    let active = true;
+    apiGet("/courses")
+      .then((data) => {
+        if (!active) return;
+        const list = data.courses || [];
+        setCourses(list);
+        // prime the progress cache so isCourseComplete() has real lesson counts
+        cacheCourses(list);
+      })
+      .catch(() => {
+        /* non-fatal — certificates just won't show */
+      });
+    return () => {
+      active = false;
+    };
+  }, [cacheCourses]);
   const certificates = useMemo(
-    () => COURSES.filter((course) => isCourseComplete(course.id)),
-    [isCourseComplete],
+    () => courses.filter((course) => isCourseComplete(course.id)),
+    [courses, isCourseComplete],
   );
   if (!isAuthenticated)
     return (

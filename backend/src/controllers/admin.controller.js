@@ -18,6 +18,23 @@ function ymd(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function shapeService(s) {
+  return {
+    id: s.id,
+    name: s.name,
+    categoryId: s.categoryId,
+    category: s.category?.title ?? null,
+    province: s.province,
+    district: s.district,
+    location: s.location,
+    phone: s.phone,
+    hours: s.hours,
+    description: s.description,
+    is24Hours: s.is24Hours,
+    isActive: s.isActive,
+  };
+}
+
 // GET /api/admin/users — real user directory for the admin panel
 // Optional filters: ?role=<label>&province=&q=
 export async function listUsers(req, res) {
@@ -220,5 +237,103 @@ export async function overview(_req, res) {
   } catch (err) {
     console.error("admin overview error:", err);
     res.status(500).json({ error: "Failed to fetch overview" });
+  }
+}
+
+// ---------- Referral service directory management (SRS §11) ----------
+// Lets ZCSIF correct phone numbers / addresses without editing the seed.
+
+// GET /api/admin/referral-services — full directory, incl. inactive
+export async function listReferralServices(_req, res) {
+  try {
+    const rows = await prisma.referralService.findMany({
+      orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      include: { category: { select: { title: true } } },
+    });
+    res.json({ services: rows.map(shapeService) });
+  } catch (err) {
+    console.error("admin listReferralServices error:", err);
+    res.status(500).json({ error: "Failed to fetch referral services" });
+  }
+}
+
+const REQUIRED = { name: "name", categoryId: "category", province: "province", district: "district", location: "location", phone: "phone", hours: "hours" };
+
+// POST /api/admin/referral-services
+export async function createReferralService(req, res) {
+  try {
+    const b = req.body ?? {};
+    for (const [field, label] of Object.entries(REQUIRED)) {
+      const val = b[field];
+      if (val === undefined || val === null || String(val).trim() === "") {
+        return res.status(400).json({ error: `${label} is required` });
+      }
+    }
+    const created = await prisma.referralService.create({
+      data: {
+        name: String(b.name).trim(),
+        categoryId: b.categoryId,
+        province: String(b.province).trim(),
+        district: String(b.district).trim(),
+        location: String(b.location).trim(),
+        phone: String(b.phone).trim(),
+        hours: String(b.hours).trim(),
+        description: b.description ? String(b.description).trim() : null,
+        is24Hours: Boolean(b.is24Hours),
+        isActive: b.isActive === undefined ? true : Boolean(b.isActive),
+      },
+      include: { category: { select: { title: true } } },
+    });
+    res.status(201).json({ service: shapeService(created) });
+  } catch (err) {
+    if (err.code === "P2003") return res.status(400).json({ error: "Invalid category" });
+    console.error("admin createReferralService error:", err);
+    res.status(500).json({ error: "Failed to create referral service" });
+  }
+}
+
+// PATCH /api/admin/referral-services/:id — partial update (e.g. phone/address)
+export async function updateReferralService(req, res) {
+  try {
+    const b = req.body ?? {};
+    const data = {};
+    const trimField = (key) => {
+      if (b[key] === undefined) return;
+      if (String(b[key]).trim() === "") throw { status: 400, message: `${key} cannot be blank` };
+      data[key] = String(b[key]).trim();
+    };
+    ["name", "categoryId", "province", "district", "location", "phone", "hours"].forEach(trimField);
+    if (b.description !== undefined) data.description = b.description ? String(b.description).trim() : null;
+    if (b.is24Hours !== undefined) data.is24Hours = Boolean(b.is24Hours);
+    if (b.isActive !== undefined) data.isActive = Boolean(b.isActive);
+
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    const updated = await prisma.referralService.update({
+      where: { id: req.params.id },
+      data,
+      include: { category: { select: { title: true } } },
+    });
+    res.json({ service: shapeService(updated) });
+  } catch (err) {
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    if (err.code === "P2025") return res.status(404).json({ error: "Referral service not found" });
+    if (err.code === "P2003") return res.status(400).json({ error: "Invalid category" });
+    console.error("admin updateReferralService error:", err);
+    res.status(500).json({ error: "Failed to update referral service" });
+  }
+}
+
+// DELETE /api/admin/referral-services/:id
+export async function deleteReferralService(req, res) {
+  try {
+    await prisma.referralService.delete({ where: { id: req.params.id } });
+    res.json({ message: "Referral service deleted" });
+  } catch (err) {
+    if (err.code === "P2025") return res.status(404).json({ error: "Referral service not found" });
+    console.error("admin deleteReferralService error:", err);
+    res.status(500).json({ error: "Failed to delete referral service" });
   }
 }

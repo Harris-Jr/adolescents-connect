@@ -5,6 +5,10 @@ import {
   listSchools,
   createSchool,
   overview,
+  listReferralServices,
+  createReferralService,
+  updateReferralService,
+  deleteReferralService,
 } from "../controllers/admin.controller.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireRole } from "../middleware/role.middleware.js";
@@ -21,5 +25,10 @@ router.patch("/users/:id", updateUserStatus);
 
 router.get("/schools", listSchools);
 router.post("/schools", createSchool);
+
+router.get("/referral-services", listReferralServices);
+router.post("/referral-services", createReferralService);
+router.patch("/referral-services/:id", updateReferralService);
+router.delete("/referral-services/:id", deleteReferralService);
 
 export default router;

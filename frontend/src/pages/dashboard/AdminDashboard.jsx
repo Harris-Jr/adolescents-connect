@@ -19,6 +19,9 @@ import {
   Globe2,
   Trophy,
   GraduationCap,
+  LifeBuoy,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -37,7 +40,7 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import { AdminLayout, StatCard, Panel } from "@/components/AdminLayout";
-import { API_URL, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { API_URL, apiGet, apiPatch, apiPost, apiDelete } from "@/lib/api";
 import { getAccessToken } from "@/contexts/AuthContext";
 import { PENDING_CONTENT, SENT_NOTIFICATIONS, PROVINCES } from "@/lib/admin-data";
 
@@ -53,6 +56,7 @@ const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "users", label: "Users", icon: Users },
   { id: "schools", label: "Schools", icon: School },
+  { id: "referrals", label: "Referral Services", icon: LifeBuoy },
   { id: "content", label: "Content Approval", icon: ClipboardCheck },
   { id: "mande", label: "M&E", icon: BarChart3, to: "/mande" },
   { id: "ambassadors", label: "Ambassadors", icon: Users, to: "/admin/ambassadors" },
@@ -79,6 +83,7 @@ function AdminDashboard() {
       {active === "overview" && <OverviewSection />}
       {active === "users" && <UsersSection />}
       {active === "schools" && <SchoolsSection />}
+      {active === "referrals" && <ReferralServicesSection />}
       {active === "content" && <ContentApprovalSection />}
       {active === "notifications" && <NotificationsSection />}
       {active === "reports" && <ReportsSection />}
@@ -644,6 +649,312 @@ function SchoolsSection() {
     </Panel>
   );
 }
+const EMPTY_SERVICE = {
+  name: "",
+  categoryId: "",
+  province: "Lusaka",
+  district: "",
+  location: "",
+  phone: "",
+  hours: "",
+  description: "",
+  is24Hours: false,
+  isActive: true,
+};
+
+function ReferralServicesSection() {
+  const [services, setServices] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(EMPTY_SERVICE);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([apiGet("/admin/referral-services"), apiGet("/support/meta")])
+      .then(([svc, meta]) => {
+        if (!active) return;
+        setServices(svc.services ?? []);
+        setCategories(meta.categories ?? []);
+      })
+      .catch((err) => {
+        if (active) setError(err.message || "Failed to load referral services");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const openCreate = () => {
+    setDraft({ ...EMPTY_SERVICE, categoryId: categories[0]?.id ?? "" });
+    setEditingId(null);
+    setShowForm(true);
+  };
+  const openEdit = (s) => {
+    setDraft({
+      name: s.name,
+      categoryId: s.categoryId,
+      province: s.province,
+      district: s.district,
+      location: s.location,
+      phone: s.phone,
+      hours: s.hours,
+      description: s.description ?? "",
+      is24Hours: s.is24Hours,
+      isActive: s.isActive,
+    });
+    setEditingId(s.id);
+    setShowForm(true);
+  };
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setDraft(EMPTY_SERVICE);
+  };
+  const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
+
+  const save = async () => {
+    if (saving) return;
+    const required = ["name", "categoryId", "province", "district", "location", "phone", "hours"];
+    if (required.some((k) => !String(draft[k]).trim())) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editingId) {
+        const { service } = await apiPatch(`/admin/referral-services/${editingId}`, draft);
+        setServices((prev) => prev.map((s) => (s.id === editingId ? service : s)));
+        toast.success("Service updated");
+      } else {
+        const { service } = await apiPost("/admin/referral-services", draft);
+        setServices((prev) => [service, ...prev]);
+        toast.success("Service added");
+      }
+      closeForm();
+    } catch (err) {
+      toast.error(err.message || "Failed to save service");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (s) => {
+    if (!window.confirm(`Delete "${s.name}"? This cannot be undone.`)) return;
+    try {
+      await apiDelete(`/admin/referral-services/${s.id}`);
+      setServices((prev) => prev.filter((x) => x.id !== s.id));
+      toast.success("Service deleted");
+    } catch (err) {
+      toast.error(err.message || "Failed to delete service");
+    }
+  };
+
+  return (
+    <Panel
+      title="Referral Services"
+      action={
+        <button
+          type="button"
+          onClick={openCreate}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-purple px-3 py-1.5 text-xs font-bold text-white"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Service
+        </button>
+      }
+    >
+      <p className="mb-4 rounded-xl bg-surface-yellow px-4 py-2.5 text-xs font-semibold text-brand-navy">
+        Verify phone numbers and addresses before go-live. National lines 116 (Childline), 933 (GBV)
+        and 991 (emergency) are confirmed; other contact details need ZCSIF sign-off.
+      </p>
+
+      {showForm && (
+        <div className="mb-5 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2">
+          <input
+            value={draft.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="Service name *"
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm sm:col-span-2"
+          />
+          <select
+            value={draft.categoryId}
+            onChange={(e) => set("categoryId", e.target.value)}
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm"
+          >
+            <option value="">Select category *</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title}
+              </option>
+            ))}
+          </select>
+          <select
+            value={draft.province}
+            onChange={(e) => set("province", e.target.value)}
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm"
+          >
+            {PROVINCES.map((p) => (
+              <option key={p}>{p}</option>
+            ))}
+          </select>
+          <input
+            value={draft.district}
+            onChange={(e) => set("district", e.target.value)}
+            placeholder="District *"
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm"
+          />
+          <input
+            value={draft.phone}
+            onChange={(e) => set("phone", e.target.value)}
+            placeholder="Phone *"
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm"
+          />
+          <input
+            value={draft.location}
+            onChange={(e) => set("location", e.target.value)}
+            placeholder="Location / address *"
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm sm:col-span-2"
+          />
+          <input
+            value={draft.hours}
+            onChange={(e) => set("hours", e.target.value)}
+            placeholder="Hours * (e.g. Mon–Fri, 08:00 – 17:00)"
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm sm:col-span-2"
+          />
+          <textarea
+            value={draft.description}
+            onChange={(e) => set("description", e.target.value)}
+            placeholder="Description (optional)"
+            rows={2}
+            className="rounded-lg border border-border bg-card px-3 py-2 text-sm sm:col-span-2"
+          />
+          <label className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <input
+              type="checkbox"
+              checked={draft.is24Hours}
+              onChange={(e) => set("is24Hours", e.target.checked)}
+              className="h-4 w-4 accent-brand-teal"
+            />
+            Open 24 hours
+          </label>
+          <label className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <input
+              type="checkbox"
+              checked={draft.isActive}
+              onChange={(e) => set("isActive", e.target.checked)}
+              className="h-4 w-4 accent-brand-teal"
+            />
+            Visible to learners
+          </label>
+          <div className="flex gap-2 sm:col-span-2">
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {saving ? "Saving..." : editingId ? "Update Service" : "Save Service"}
+            </button>
+            <button
+              type="button"
+              onClick={closeForm}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground hover:bg-muted"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        {loading ? (
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
+            ))}
+          </div>
+        ) : error ? (
+          <p className="py-8 text-center text-sm font-semibold text-brand-pink">{error}</p>
+        ) : services.length === 0 ? (
+          <div className="rounded-2xl bg-card p-8 text-center shadow-sm">
+            <LifeBuoy className="mx-auto h-12 w-12 text-muted-foreground/40" />
+            <p className="mt-3 text-sm font-semibold text-muted-foreground">
+              No referral services yet
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Add a service above, or seed the directory from the backend.
+            </p>
+          </div>
+        ) : (
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                <th className="py-2 pr-4 font-bold">Name</th>
+                <th className="py-2 pr-4 font-bold">Category</th>
+                <th className="py-2 pr-4 font-bold">Location</th>
+                <th className="py-2 pr-4 font-bold">Phone</th>
+                <th className="py-2 pr-4 font-bold">Active</th>
+                <th className="py-2 pr-4 font-bold">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {services.map((s) => (
+                <tr key={s.id} className="border-b border-border/60">
+                  <td className="py-2.5 pr-4 font-semibold text-brand-navy">{s.name}</td>
+                  <td className="py-2.5 pr-4">{s.category}</td>
+                  <td className="py-2.5 pr-4 text-muted-foreground">
+                    {s.location}
+                    <span className="block text-xs">
+                      {s.district}, {s.province}
+                    </span>
+                  </td>
+                  <td className="py-2.5 pr-4">{s.phone}</td>
+                  <td className="py-2.5 pr-4">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                        s.isActive ? "bg-surface-mint text-brand-teal" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {s.isActive ? "Live" : "Hidden"}
+                    </span>
+                  </td>
+                  <td className="py-2.5 pr-4">
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(s)}
+                        aria-label={`Edit ${s.name}`}
+                        className="rounded-lg border border-border p-1.5 text-foreground hover:bg-muted"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(s)}
+                        aria-label={`Delete ${s.name}`}
+                        className="rounded-lg border border-border p-1.5 text-brand-red hover:bg-muted"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 function ContentApprovalSection() {
   const [queue, setQueue] = useState(PENDING_CONTENT);
   const [rejecting, setRejecting] = useState(null);
