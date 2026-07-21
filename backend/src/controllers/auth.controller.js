@@ -163,26 +163,29 @@ export async function register(req, res) {
  */
 export async function login(req, res) {
   try {
-    const { email, phone, password } = req.body;
+    const { email, phone, identifier, password } = req.body;
 
     // Validate input
     if (!password) {
       return res.status(400).json({ error: "Password is required" });
     }
 
-    if (!email && !phone) {
+    // The login form submits a single "identifier" (phone number OR email);
+    // email/phone are still accepted for backward compatibility.
+    const id = typeof identifier === "string" ? identifier.trim() : "";
+    const orConditions = [];
+    if (email) orConditions.push({ email });
+    if (phone) orConditions.push({ phone });
+    if (id) orConditions.push({ email: id }, { phone: id });
+
+    if (orConditions.length === 0) {
       return res
-        .status(400).json({ error: "Email or phone is required" });
+        .status(400).json({ error: "Phone number or email is required" });
     }
 
     // Find user
     const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          ...(email ? [{ email }] : []),
-          ...(phone ? [{ phone }] : []),
-        ],
-      },
+      where: { OR: orConditions },
     });
 
     if (!user) {

@@ -25,7 +25,7 @@ function AuthPage({ mode: modeProp } = {}) {
   const { login, register } = useAuth();
   const { t } = useLanguage();
   const isLogin = mode !== "register";
-  const [loginData, setLoginData] = useState({ email: "", password: "" });
+  const [loginData, setLoginData] = useState({ identifier: "", password: "" });
   const [form, setForm] = useState(initialRegister);
   const [errors, setErrors] = useState({});
   const [pending, setPending] = useState(false);
@@ -60,13 +60,13 @@ function AuthPage({ mode: modeProp } = {}) {
   };
   const handleLogin = async () => {
     const next = {};
-    if (!loginData.email) next.loginEmail = "Email is required.";
+    if (!loginData.identifier) next.loginIdentifier = "Phone number or email is required.";
     if (!loginData.password) next.loginPassword = "Password is required.";
     setErrors(next);
     if (Object.keys(next).length) return;
     setPending(true);
     try {
-      const user = await login(loginData.email, loginData.password);
+      const user = await login(loginData.identifier.trim(), loginData.password);
       await navigate(routeForRole(user.role));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Login failed.");
@@ -102,13 +102,13 @@ function AuthPage({ mode: modeProp } = {}) {
       </h1>
       <div className="mt-8 space-y-4">
         <FloatingInput
-          id="login-email"
-          label={t("auth.email")}
-          type="email"
-          autoComplete="email"
-          value={loginData.email}
-          onChange={(e) => setLoginData((c) => ({ ...c, email: e.target.value }))}
-          error={errors.loginEmail}
+          id="login-identifier"
+          label="Phone number or email"
+          type="text"
+          autoComplete="username"
+          value={loginData.identifier}
+          onChange={(e) => setLoginData((c) => ({ ...c, identifier: e.target.value }))}
+          error={errors.loginIdentifier}
           required
         />
         <PasswordInput
@@ -131,7 +131,7 @@ function AuthPage({ mode: modeProp } = {}) {
         <Button
           type="button"
           onClick={handleLogin}
-          disabled={pending || !loginData.email || !loginData.password}
+          disabled={pending || !loginData.identifier || !loginData.password}
           className="min-h-12 w-full rounded-xl bg-gradient-to-r from-brand-purple to-brand-pink font-bold"
         >
           {pending ? "Logging in…" : t("auth.login")}

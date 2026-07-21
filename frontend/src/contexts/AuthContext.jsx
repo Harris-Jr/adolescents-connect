@@ -72,14 +72,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   /**
-   * Login user with email and password
+   * Login user with an identifier (phone number OR email) and password.
    * Calls backend API, stores token and user in state/localStorage
    */
-  const login = async (email, password) => {
+  const login = async (identifier, password) => {
     try {
       const result = await apiCall("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }),
       });
 
       const { user: userData, accessToken } = result;
