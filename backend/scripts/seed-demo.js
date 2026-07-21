@@ -32,9 +32,9 @@ const DEMO_SCHOOL = {
 
 // Distinct 096600000x phones so they never collide with real demo signups.
 const ACCOUNTS = [
-  { firstName: "Sarah", lastName: "Banda", phone: "0966000001", role: "SCHOOL_ADMIN", staffId: "DEMO-SA-01", linkSchool: true },
-  { firstName: "Grace", lastName: "Mwansa", phone: "0966000002", role: "PROGRAMME_ADMIN", staffId: "DEMO-PA-01" },
-  { firstName: "James", lastName: "Phiri", phone: "0966000003", role: "ADMIN", staffId: "DEMO-AD-01" },
+  { firstName: "Joseph", lastName: "Test", phone: "0966000001", role: "SCHOOL_ADMIN", staffId: "DEMO-SA-01", linkSchool: true },
+  { firstName: "Micheal", lastName: "Test", phone: "0966000002", role: "PROGRAMME_ADMIN", staffId: "DEMO-PA-01" },
+  { firstName: "John", lastName: "Test", phone: "0966000003", role: "ADMIN", staffId: "DEMO-AD-01" },
 ];
 
 async function main() {
