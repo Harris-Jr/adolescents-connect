@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, BookOpen, CircleCheck, Award, Users, Trophy, Info } from "lucide-react";
+import { Bell, BookOpen, CircleCheck, Award, Users, Trophy, Info, MessageCircle } from "lucide-react";
 import { useNotifications } from "@/contexts/NotificationsContext";
-const icons = { lesson: BookOpen, quiz: CircleCheck, badge: Award, club: Users, challenge: Trophy, system: Info };
+const icons = { lesson: BookOpen, quiz: CircleCheck, badge: Award, club: Users, challenge: Trophy, system: Info, chat: MessageCircle, ambassador: Award };
 export function NotificationBell() {
     const [open, setOpen] = useState(false);
     const { notifications, unreadCount, markAllRead, markRead } = useNotifications();
@@ -18,7 +18,7 @@ export function NotificationBell() {
           </div>
           <div className="max-h-80 overflow-y-auto">
             {notifications.slice(0, 5).map((item) => {
-                const Icon = icons[item.type];
+                const Icon = icons[item.type] ?? Info;
                 return (<button key={item.id} type="button" onClick={() => markRead(item.id)} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-b border-border/60 px-4 py-3 text-left transition hover:bg-muted">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-lavender text-brand-purple"><Icon className="h-4 w-4"/></span>
                   <span className="min-w-0"><span className="block text-sm font-semibold text-foreground">{item.message}</span><span className="mt-0.5 block text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleDateString("en-ZM", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></span>

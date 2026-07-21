@@ -72,11 +72,51 @@ const statusPill = {
 };
 function AdminDashboard() {
   const [active, setActive] = useState("overview");
+  const [pendingChats, setPendingChats] = useState(0);
+
+  // Poll pending chat sessions so new support requests are visible from any
+  // tab (the admin layout has no notification bell), not just the Chat tab.
+  useEffect(() => {
+    let active = true;
+    const load = () =>
+      apiGet("/support/chat/sessions")
+        .then((d) => {
+          if (active) setPendingChats((d.sessions ?? []).filter((s) => s.status === "pending").length);
+        })
+        .catch(() => {/* non-fatal */});
+    load();
+    const t = setInterval(load, 15000);
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  const navItems = useMemo(
+    () =>
+      NAV.map((item) =>
+        item.id === "chat" && pendingChats > 0
+          ? {
+              ...item,
+              label: (
+                <span className="flex items-center gap-2">
+                  Live Chat
+                  <span className="rounded-full bg-brand-red px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {pendingChats}
+                  </span>
+                </span>
+              ),
+            }
+          : item,
+      ),
+    [pendingChats],
+  );
+
   return (
     <AdminLayout
       brand="Programme Admin"
       subtitle="National oversight & monitoring"
-      items={NAV}
+      items={navItems}
       active={active}
       onSelect={setActive}
     >
@@ -1281,7 +1321,10 @@ function ChatSection() {
 
   async function fetchMessages(sessionId) {
     try {
-      const res = await fetch(`${API_URL}/support/chat/${sessionId}/messages`);
+      const tok = getAccessToken();
+      const res = await fetch(`${API_URL}/support/chat/${sessionId}/messages`, {
+        headers: { Authorization: `Bearer ${tok}` },
+      });
       const data = await res.json();
       setMessages(data.messages ?? []);
     } catch { /* non-fatal */ }

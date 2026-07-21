@@ -16,10 +16,12 @@ const router = Router();
 router.get("/services", listReferralServices);
 router.get("/meta", listSupportMeta);
 
-// Chat — start is optionally authed (guests can chat too)
-router.post("/chat/start", startChat);
-router.post("/chat/:sessionId/message", sendMessage);
-router.get("/chat/:sessionId/messages", getMessages);
+// Chat — authenticated only (safeguarding: sessions carry sensitive
+// disclosures from minors, so every session must have a known owner and
+// access is restricted to that owner or a reviewer).
+router.post("/chat/start", requireAuth, startChat);
+router.post("/chat/:sessionId/message", requireAuth, sendMessage);
+router.get("/chat/:sessionId/messages", requireAuth, getMessages);
 
 // Admin only — list all sessions
 router.get(

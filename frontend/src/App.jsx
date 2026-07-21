@@ -105,7 +105,14 @@ function AppShell() {
           />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/support" element={<Support />} />
-          <Route path="/support/chat" element={<SupportChat />} />
+          <Route
+            path="/support/chat"
+            element={
+              <ProtectedRoute>
+                <SupportChat />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/support/services" element={<SupportServices />} />
           <Route path="/support/resources" element={<SupportResources />} />
           <Route

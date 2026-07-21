@@ -1,16 +1,31 @@
 import { PrismaClient } from "@prisma/client";
 import { sendEmail } from "../utils/email.js";
+import { createNotification } from "./notifications.controller.js";
 
 const prisma = new PrismaClient();
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
 
+// Reviewers (ADMIN / PROGRAMME_ADMIN) may access any session; everyone else
+// only their own. Guest-owned sessions (userId null) are reviewer-only.
+function canAccessSession(user, session) {
+  if (user.role === "ADMIN" || user.role === "PROGRAMME_ADMIN") return true;
+  return session.userId != null && session.userId === user.id;
+}
+
 // POST /api/support/chat/start
+// Optional { category, message } — sent by the "I Need Help" form so the
+// session opens seeded with the learner's topic and first message, and
+// admins get an in-app notification. Plain "Talk to Someone" sends neither.
 export async function startChat(req, res) {
   try {
-    const { guestName } = req.body;
-    const userId = req.user?.id ?? null;
+    const { guestName, category, message } = req.body;
+    const userId = req.user.id; // requireAuth guarantees an owner
+    const isHelpRequest = Boolean(category) || Boolean(message?.trim());
 
+    // Create the session with the system welcome, then append the topic
+    // line and the learner's first message in sequence so createdAt
+    // ordering is deterministic (all messages share one order key otherwise).
     const session = await prisma.chatSession.create({
       data: {
         userId,
@@ -23,14 +38,29 @@ export async function startChat(req, res) {
           },
         },
       },
-      include: { messages: true },
     });
 
-    // Email admin
+    if (category) {
+      await prisma.chatMessage.create({
+        data: { sessionId: session.id, from: "system", text: `Requested help with: ${category}` },
+      });
+    }
+    if (message?.trim()) {
+      await prisma.chatMessage.create({
+        data: { sessionId: session.id, from: "user", text: message.trim() },
+      });
+    }
+
+    const messages = await prisma.chatMessage.findMany({
+      where: { sessionId: session.id },
+      orderBy: { createdAt: "asc" },
+    });
+
     const userName = req.user
       ? `${req.user.firstName} ${req.user.lastName}`
       : (guestName ?? "Anonymous");
 
+    // Email admin
     await sendEmail({
       to: ADMIN_EMAIL,
       subject: "A-LINKS: New Live Chat Request",
@@ -38,6 +68,8 @@ export async function startChat(req, res) {
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
           <h2 style="color:#1a237e">New Live Chat Request</h2>
           <p><strong>From:</strong> ${userName}</p>
+          ${category ? `<p><strong>Topic:</strong> ${category}</p>` : ""}
+          ${message?.trim() ? `<p><strong>Message:</strong> ${message.trim()}</p>` : ""}
           <p><strong>Session ID:</strong> ${session.id}</p>
           <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
           <p>
@@ -51,7 +83,22 @@ export async function startChat(req, res) {
       text: `New live chat request from ${userName}. Session ID: ${session.id}`,
     }).catch((err) => console.error("Chat notification email failed:", err));
 
-    res.status(201).json({ session });
+    // In-app notification to reviewers, but only for real help requests
+    // (avoids spamming admins from the chat page's start-on-mount).
+    if (isHelpRequest) {
+      const admins = await prisma.user.findMany({
+        where: { role: { in: ["ADMIN", "PROGRAMME_ADMIN"] }, isActive: true },
+        select: { id: true },
+      });
+      const label = category ? ` (${category})` : "";
+      await Promise.all(
+        admins.map((a) =>
+          createNotification(a.id, "chat", `New support request from ${userName}${label}`),
+        ),
+      );
+    }
+
+    res.status(201).json({ session: { ...session, messages } });
   } catch (err) {
     console.error("startChat error:", err);
     res.status(500).json({ error: "Failed to start chat session" });
@@ -68,6 +115,9 @@ export async function sendMessage(req, res) {
       where: { id: req.params.sessionId },
     });
     if (!session) return res.status(404).json({ error: "Session not found" });
+    if (!canAccessSession(req.user, session)) {
+      return res.status(403).json({ error: "You do not have access to this chat" });
+    }
 
     // Update status to active when counsellor replies
     const isAdmin = req.user?.role === "ADMIN" || req.user?.role === "PROGRAMME_ADMIN";
@@ -96,6 +146,15 @@ export async function sendMessage(req, res) {
 // GET /api/support/chat/:sessionId/messages
 export async function getMessages(req, res) {
   try {
+    const session = await prisma.chatSession.findUnique({
+      where: { id: req.params.sessionId },
+      select: { id: true, userId: true },
+    });
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    if (!canAccessSession(req.user, session)) {
+      return res.status(403).json({ error: "You do not have access to this chat" });
+    }
+
     const messages = await prisma.chatMessage.findMany({
       where: { sessionId: req.params.sessionId },
       orderBy: { createdAt: "asc" },

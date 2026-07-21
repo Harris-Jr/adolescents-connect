@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Send, ShieldCheck, Headphones, Loader2 } from "lucide-react";
 import { API_URL } from "@/lib/api";
@@ -9,6 +9,8 @@ const POLL_INTERVAL = 4000; // poll every 4 seconds
 
 function SupportChat() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const existingSessionId = searchParams.get("session");
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -22,11 +24,30 @@ function SupportChat() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Start session on mount
+  // On mount: resume the session from ?session= (e.g. coming from the
+  // "I Need Help" flow) if present, otherwise start a fresh session.
   useEffect(() => {
-    startSession();
+    if (existingSessionId) {
+      resumeSession(existingSessionId);
+    } else {
+      startSession();
+    }
     return () => clearInterval(pollRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function resumeSession(sid) {
+    setStarting(true);
+    try {
+      setSessionId(sid);
+      await pollMessages(sid);
+      pollRef.current = setInterval(() => pollMessages(sid), POLL_INTERVAL);
+    } catch {
+      setError("Failed to load your chat");
+    } finally {
+      setStarting(false);
+    }
+  }
 
   async function startSession() {
     setStarting(true);
@@ -57,7 +78,10 @@ function SupportChat() {
 
   async function pollMessages(sid) {
     try {
-      const res = await fetch(`${API_URL}/support/chat/${sid}/messages`);
+      const tok = getAccessToken();
+      const res = await fetch(`${API_URL}/support/chat/${sid}/messages`, {
+        headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+      });
       const data = await res.json();
       if (data.messages) setMessages(data.messages);
     } catch {

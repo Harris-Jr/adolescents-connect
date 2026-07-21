@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
   HeartPulse,
@@ -15,7 +15,9 @@ import {
   X,
   CheckCircle2,
 } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import { toast } from "sonner";
+import { apiGet, apiPost } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { CONTACT_METHODS } from "@/lib/support-data";
 
 // Presentation only — icon + colour per category id. Content (title,
@@ -39,6 +41,8 @@ const CATEGORY_STYLES = {
 const DEFAULT_STYLE = { surface: "bg-muted", text: "text-brand-navy" };
 
 function Support() {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [referralOpen, setReferralOpen] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +76,7 @@ function Support() {
         <div className="mt-6 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() => setReferralOpen(true)}
+            onClick={() => (isAuthenticated ? setReferralOpen(true) : navigate("/auth"))}
             className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-brand-teal transition-transform hover:scale-105"
           >
             <LifeBuoy className="h-4 w-4" /> I Need Help
@@ -180,7 +184,30 @@ function ReferralModal({ categories, onClose }) {
   const [category, setCategory] = useState("");
   const [situation, setSituation] = useState("");
   const [method, setMethod] = useState("");
-  const reference = `ALK-${Math.floor(100000 + Math.random() * 900000)}`;
+  const [submitting, setSubmitting] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+
+  const submit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    const methodLabel = CONTACT_METHODS.find((m) => m.id === method)?.label;
+    const message = [
+      situation.trim() || `I would like help with ${category}.`,
+      methodLabel ? `Preferred contact: ${methodLabel}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    try {
+      const { session } = await apiPost("/support/chat/start", { category, message });
+      setSessionId(session.id);
+      setStep(4);
+    } catch (err) {
+      toast.error(err.message || "Couldn't send your request. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="relative w-full max-w-lg rounded-3xl bg-card p-6 shadow-xl sm:p-8">
@@ -269,9 +296,9 @@ function ReferralModal({ categories, onClose }) {
             </div>
             <StepNav
               onBack={() => setStep(2)}
-              onNext={() => setStep(4)}
-              nextLabel="Send referral"
-              nextDisabled={!method}
+              onNext={submit}
+              nextLabel={submitting ? "Sending..." : "Send request"}
+              nextDisabled={!method || submitting}
             />
           </div>
         )}
@@ -282,19 +309,24 @@ function ReferralModal({ categories, onClose }) {
               <CheckCircle2 className="h-8 w-8 text-brand-teal" />
             </span>
             <h2 className="mt-4 text-xl font-extrabold text-brand-navy">
-              Your referral has been sent
+              We've started a confidential chat for you
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Someone will reach out to you. You are not alone.
+              A counsellor will join shortly. Open the chat to continue the conversation live and
+              see their reply.
             </p>
-            <p className="mt-4 inline-block rounded-xl bg-muted px-4 py-2 text-sm font-bold text-brand-navy">
-              Reference: {reference}
-            </p>
+            <Link
+              to={`/support/chat?session=${sessionId}`}
+              onClick={onClose}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-teal px-4 py-3 text-sm font-bold text-white"
+            >
+              <MessageCircle className="h-4 w-4" /> Open live chat
+            </Link>
             <button
               onClick={onClose}
-              className="mt-6 w-full rounded-xl bg-brand-navy px-4 py-3 text-sm font-bold text-white"
+              className="mt-3 w-full rounded-xl border border-border px-4 py-3 text-sm font-bold text-foreground hover:bg-muted"
             >
-              Done
+              Close
             </button>
           </div>
         )}
