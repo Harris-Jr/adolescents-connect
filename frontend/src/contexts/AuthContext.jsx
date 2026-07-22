@@ -23,6 +23,44 @@ function setStoredToken(token) {
 }
 
 /**
+ * Read the exp (ms since epoch) out of a JWT access token, or 0 if unknown.
+ */
+function tokenExpiryMs(token) {
+  try {
+    const part = token.split(".")[1];
+    const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+    return payload.exp ? payload.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Exchange the httpOnly refresh cookie for a fresh access token.
+ * Deduped so concurrent callers (e.g. the scheduler + a 401 retry) share one
+ * in-flight request. Throws if the refresh token is missing/expired.
+ */
+let refreshInFlight = null;
+export function refreshAccessToken() {
+  if (!refreshInFlight) {
+    refreshInFlight = fetch(`${API_URL}/auth/refresh-token`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Session refresh failed");
+        const { accessToken } = await res.json();
+        setStoredToken(accessToken);
+        return accessToken;
+      })
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
+
+/**
  * Make authenticated API request
  */
 async function apiCall(endpoint, options = {}) {
@@ -70,6 +108,41 @@ export function AuthProvider({ children }) {
       setIsLoading(false);
     }
   }, []);
+
+  /**
+   * Keep the short-lived (15 min) access token alive during an active
+   * session: schedule a refresh ~1 min before the token's actual expiry
+   * (read from the JWT), so an in-use session is never logged out mid-click.
+   * If the refresh token itself has expired, clear the session so protected
+   * routes cleanly send the user to /auth.
+   */
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    let timer;
+    const schedule = () => {
+      const token = getStoredToken();
+      const exp = token ? tokenExpiryMs(token) : 0;
+      const delay = exp ? Math.max(5000, exp - Date.now() - 60000) : 5000;
+      timer = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          await refreshAccessToken();
+          if (!cancelled) schedule();
+        } catch {
+          if (cancelled) return;
+          setStoredToken(null);
+          localStorage.removeItem(STORAGE_KEY);
+          setUser(null);
+        }
+      }, delay);
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [user]);
 
   /**
    * Login user with an identifier (phone number OR email) and password.

@@ -34,6 +34,7 @@ import {
 } from "@/lib/teacher-data";
 import { API_URL } from "@/lib/api";
 import { getAccessToken } from "@/contexts/AuthContext";
+import { UserMenu } from "@/components/UserMenu";
 import { toast } from "sonner";
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -56,13 +57,6 @@ function TeacherDashboard() {
   const lastName = user?.lastName ?? "";
   const name = `${firstName} ${lastName}`.trim() || "Teacher";
   const school = user?.schoolName ?? "Your School";
-  const initials = name
-    .split(" ")
-    .filter(Boolean)
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
   const title = NAV.find((n) => n.id === section)?.label ?? "Overview";
   return (
     <div className="flex min-h-screen bg-background">
@@ -160,9 +154,7 @@ function TeacherDashboard() {
             <Bell className="h-5 w-5" />
             <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-brand-pink" />
           </button>
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-teal text-sm font-extrabold text-white">
-            {initials}
-          </span>
+          <UserMenu />
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">

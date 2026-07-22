@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
+import { UserMenu } from "@/components/UserMenu";
 export function AdminLayout({ brand, subtitle, items, active, onSelect, children, }) {
     const [open, setOpen] = useState(false);
     const nav = (<nav className="flex gap-1 lg:flex-col">
@@ -61,8 +62,9 @@ export function AdminLayout({ brand, subtitle, items, active, onSelect, children
             <h1 className="truncate text-lg font-extrabold text-brand-navy">{brand}</h1>
             {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
             <NotificationBell />
+            <UserMenu />
           </div>
         </header>
         <main className="flex-1 px-4 py-6 lg:px-8">{children}</main>
