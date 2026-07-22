@@ -35,6 +35,7 @@ import {
 import { API_URL } from "@/lib/api";
 import { getAccessToken } from "@/contexts/AuthContext";
 import { UserMenu } from "@/components/UserMenu";
+import { DashboardBottomNav } from "@/components/DashboardBottomNav";
 import { toast } from "sonner";
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -52,7 +53,6 @@ function TeacherDashboard() {
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [section, setSection] = useState("overview");
-  const [mobileOpen, setMobileOpen] = useState(false);
   const firstName = user?.firstName ?? "Teacher";
   const lastName = user?.lastName ?? "";
   const name = `${firstName} ${lastName}`.trim() || "Teacher";
@@ -63,9 +63,8 @@ function TeacherDashboard() {
       {/* Sidebar */}
       <aside
         className={
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-border bg-card transition-all lg:static " +
-          (mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0 ") +
-          (collapsed ? " w-64 lg:w-20" : " w-64")
+          "hidden shrink-0 flex-col border-r border-border bg-card transition-all lg:flex " +
+          (collapsed ? "lg:w-20" : "lg:w-64")
         }
       >
         <div className="flex items-center justify-between gap-2 px-4 py-5">
@@ -73,10 +72,7 @@ function TeacherDashboard() {
             <img src="/images/alinks-logo.jpeg" alt="A-LINKS" width={140} height={56} className="h-9 w-auto" />
           )}
           <button
-            onClick={() => {
-              setCollapsed((v) => !v);
-              setMobileOpen(false);
-            }}
+            onClick={() => setCollapsed((v) => !v)}
             aria-label="Toggle sidebar"
             className="flex h-9 w-9 items-center justify-center rounded-xl text-brand-navy transition hover:bg-muted"
           >
@@ -89,10 +85,7 @@ function TeacherDashboard() {
             return (
               <button
                 key={id}
-                onClick={() => {
-                  setSection(id);
-                  setMobileOpen(false);
-                }}
+                onClick={() => setSection(id)}
                 title={label}
                 className={
                   "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition " +
@@ -122,23 +115,9 @@ function TeacherDashboard() {
         </button>
       </aside>
 
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-card/90 px-4 py-3 backdrop-blur sm:px-6">
-          <button
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-brand-navy hover:bg-muted lg:hidden"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -157,7 +136,7 @@ function TeacherDashboard() {
           <UserMenu />
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6 lg:pb-6">
           <h1 className="mb-5 text-2xl font-extrabold text-brand-navy sm:text-3xl">{title}</h1>
           {section === "overview" && <Overview firstName={firstName} school={school} />}
           {section === "learners" && <MyLearners />}
@@ -171,6 +150,8 @@ function TeacherDashboard() {
           {section === "settings" && <TeacherSettings name={name} school={school} />}
         </main>
       </div>
+
+      <DashboardBottomNav items={NAV} active={section} onSelect={setSection} />
     </div>
   );
 }

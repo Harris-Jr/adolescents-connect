@@ -1,11 +1,9 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
-import { Menu, X } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { UserMenu } from "@/components/UserMenu";
+import { DashboardBottomNav } from "@/components/DashboardBottomNav";
 export function AdminLayout({ brand, subtitle, items, active, onSelect, children, }) {
-    const [open, setOpen] = useState(false);
-    const nav = (<nav className="flex gap-1 lg:flex-col">
+    const nav = (<nav className="flex flex-col gap-1">
       {items.map((item) => {
             const Icon = item.icon;
             const isActive = active === item.id;
@@ -14,15 +12,12 @@ export function AdminLayout({ brand, subtitle, items, active, onSelect, children
                     ? "bg-surface-lavender text-brand-purple"
                     : "text-foreground/80 hover:bg-muted");
             if (item.to) {
-                return (<Link key={item.id} to={item.to} className={cls} onClick={() => setOpen(false)}>
+                return (<Link key={item.id} to={item.to} className={cls}>
               <Icon className="h-4 w-4 shrink-0"/>
               {item.label}
             </Link>);
             }
-            return (<button key={item.id} type="button" onClick={() => {
-                    onSelect(item.id);
-                    setOpen(false);
-                }} className={cls}>
+            return (<button key={item.id} type="button" onClick={() => onSelect(item.id)} className={cls}>
             <Icon className="h-4 w-4 shrink-0"/>
             {item.label}
           </button>);
@@ -38,26 +33,9 @@ export function AdminLayout({ brand, subtitle, items, active, onSelect, children
         {nav}
       </aside>
 
-      {/* Mobile drawer */}
-      {open && (<div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)}/>
-          <aside className="absolute left-0 top-0 h-full w-64 overflow-y-auto bg-card px-3 py-6 shadow-xl">
-            <div className="mb-6 flex items-center justify-between px-3">
-              <span className="text-lg font-extrabold text-brand-navy">A-LINKS</span>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close menu">
-                <X className="h-5 w-5"/>
-              </button>
-            </div>
-            {nav}
-          </aside>
-        </div>)}
-
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 lg:px-8">
-          <button type="button" className="lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
-            <Menu className="h-5 w-5"/>
-          </button>
           <div className="min-w-0">
             <h1 className="truncate text-lg font-extrabold text-brand-navy">{brand}</h1>
             {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
@@ -67,8 +45,10 @@ export function AdminLayout({ brand, subtitle, items, active, onSelect, children
             <UserMenu />
           </div>
         </header>
-        <main className="flex-1 px-4 py-6 lg:px-8">{children}</main>
+        <main className="flex-1 px-4 py-6 pb-28 lg:px-8 lg:pb-8">{children}</main>
       </div>
+
+      <DashboardBottomNav items={items} active={active} onSelect={onSelect} />
     </div>);
 }
 export function StatCard({ label, value, icon: Icon, surface = "bg-surface-lavender", color = "text-brand-purple", }) {

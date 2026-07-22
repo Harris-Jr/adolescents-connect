@@ -46,6 +46,10 @@ function AppShell() {
   const { pathname } = useLocation();
   const { isAuthenticated } = useAuth();
   const isDashboard = pathname.startsWith("/dashboard");
+  // Admin-family dashboards render their own role-specific pill bottom nav.
+  const isAdminFamilyDashboard = ["/dashboard/admin", "/dashboard/school", "/dashboard/teacher"].includes(
+    pathname,
+  );
   const isAuth =
     pathname === "/auth" ||
     pathname === "/login" ||
@@ -183,7 +187,7 @@ function AppShell() {
         </Routes>
       </div>
       {!isDashboard && !isAuth && <Footer />}
-      {isAppPage && <MobileBottomNav />}
+      {isAppPage && !isAdminFamilyDashboard && <MobileBottomNav />}
       <Toaster position="top-center" richColors />
     </div>
   );
