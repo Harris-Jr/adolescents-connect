@@ -53,7 +53,7 @@ function Mande() {
   useEffect(() => {
     if (
       !isLoading &&
-      (!isAuthenticated || !["admin", "programme_admin"].includes(user?.role ?? ""))
+      (!isAuthenticated || !["admin", "programme_admin"].includes((user?.role ?? "").toLowerCase()))
     ) {
       navigate("/auth", { replace: true });
     }
@@ -85,7 +85,7 @@ function Mande() {
     };
   }, [from, to, isLoading, isAuthenticated]);
 
-  if (isLoading || !isAuthenticated || !["admin", "programme_admin"].includes(user?.role ?? "")) {
+  if (isLoading || !isAuthenticated || !["admin", "programme_admin"].includes((user?.role ?? "").toLowerCase())) {
     return <div className="min-h-screen animate-pulse bg-muted" aria-label="Checking access" />;
   }
 
