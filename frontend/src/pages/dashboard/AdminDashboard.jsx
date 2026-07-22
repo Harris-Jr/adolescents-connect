@@ -39,10 +39,27 @@ import {
   Legend,
 } from "recharts";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { AdminLayout, StatCard, Panel } from "@/components/AdminLayout";
 import { API_URL, apiGet, apiPatch, apiPost, apiDelete } from "@/lib/api";
-import { getAccessToken } from "@/contexts/AuthContext";
+import { useAuth, getAccessToken } from "@/contexts/AuthContext";
 import { PENDING_CONTENT, SENT_NOTIFICATIONS, PROVINCES } from "@/lib/admin-data";
+
+// Role values the API accepts (enum) + their display labels.
+const ROLE_OPTIONS = [
+  { value: "LEARNER", label: "Learner" },
+  { value: "TEACHER", label: "Teacher" },
+  { value: "SCHOOL_ADMIN", label: "School Admin" },
+  { value: "PROGRAMME_ADMIN", label: "Programme Admin" },
+  { value: "ADMIN", label: "Admin" },
+];
+const LABEL_TO_ROLE_VALUE = Object.fromEntries(ROLE_OPTIONS.map((r) => [r.label, r.value]));
 
 // Pie slice colours by role label (presentation only)
 const ROLE_COLORS = {
@@ -325,8 +342,260 @@ function OverviewSection() {
     </div>
   );
 }
+// Shared field styling for the admin user modals.
+const fieldCls =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
+const labelCls = "mb-1 block text-xs font-bold text-muted-foreground";
+
+// ADMIN-only: create a user of any role. The admin sets an initial password
+// and shares it with the person out-of-band.
+function InviteUserModal({ open, onOpenChange, onCreated, schools }) {
+  const empty = {
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    password: "",
+    role: "LEARNER",
+    school: "",
+    province: "",
+  };
+  const [form, setForm] = useState(empty);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const needsSchool = form.role === "SCHOOL_ADMIN";
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      toast.error("First and last names are required");
+      return;
+    }
+    if (!form.email.trim() && !form.phone.trim()) {
+      toast.error("Email or phone is required");
+      return;
+    }
+    if (!form.password) {
+      toast.error("An initial password is required");
+      return;
+    }
+    if (needsSchool && !form.school.trim()) {
+      toast.error("A school is required for a School Admin");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { user } = await apiPost("/admin/users", {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        password: form.password,
+        role: form.role,
+        schoolName: form.school.trim() || undefined,
+        province: form.province || undefined,
+      });
+      toast.success(`${user.name} created as ${user.role}`);
+      onCreated(user);
+      setForm(empty);
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err.message || "Failed to create user");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Invite a user</DialogTitle>
+          <DialogDescription>
+            Create an account of any role. Share the initial password with them directly.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>First name</label>
+              <input className={fieldCls} value={form.firstName} onChange={set("firstName")} />
+            </div>
+            <div>
+              <label className={labelCls}>Last name</label>
+              <input className={fieldCls} value={form.lastName} onChange={set("lastName")} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Email</label>
+              <input className={fieldCls} type="email" value={form.email} onChange={set("email")} />
+            </div>
+            <div>
+              <label className={labelCls}>Phone</label>
+              <input className={fieldCls} value={form.phone} onChange={set("phone")} />
+            </div>
+          </div>
+          <p className="-mt-1 text-[11px] text-muted-foreground">Provide at least one of email or phone.</p>
+          <div>
+            <label className={labelCls}>Initial password</label>
+            <input className={fieldCls} type="text" value={form.password} onChange={set("password")} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Role</label>
+              <select className={fieldCls} value={form.role} onChange={set("role")}>
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Province</label>
+              <select className={fieldCls} value={form.province} onChange={set("province")}>
+                <option value="">—</option>
+                {PROVINCES.map((p) => (
+                  <option key={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>
+              School {needsSchool ? "(required)" : "(optional)"}
+            </label>
+            <input
+              className={fieldCls}
+              list="admin-invite-schools"
+              value={form.school}
+              onChange={set("school")}
+              placeholder="Start typing a school name"
+            />
+            <datalist id="admin-invite-schools">
+              {schools.map((s) => (
+                <option key={s.id} value={s.name} />
+              ))}
+            </datalist>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-lg bg-brand-purple px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {busy ? "Creating..." : "Create user"}
+            </button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ADMIN-only: change an existing user's role. A school is collected when
+// promoting to School Admin so their dashboard has something to scope to.
+function RoleChangeModal({ user, onOpenChange, onChanged, schools }) {
+  const [role, setRole] = useState(LABEL_TO_ROLE_VALUE[user.role] ?? "LEARNER");
+  const [school, setSchool] = useState("");
+  const [busy, setBusy] = useState(false);
+  const hasSchool = user.school && user.school !== "—";
+  const needsSchool = role === "SCHOOL_ADMIN" && !hasSchool;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    if (needsSchool && !school.trim()) {
+      toast.error("Provide a school to make this user a School Admin");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { user: updated } = await apiPatch(`/admin/users/${user.id}/role`, {
+        role,
+        schoolName: school.trim() || undefined,
+      });
+      toast.success(`${updated.name} is now ${updated.role}`);
+      onChanged(updated);
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err.message || "Failed to change role");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Change role</DialogTitle>
+          <DialogDescription>
+            {user.name} — currently {user.role}.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3">
+          <div>
+            <label className={labelCls}>New role</label>
+            <select className={fieldCls} value={role} onChange={(e) => setRole(e.target.value)}>
+              {ROLE_OPTIONS.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+          {role === "SCHOOL_ADMIN" && (
+            <div>
+              <label className={labelCls}>
+                School {needsSchool ? "(required)" : "(optional — replaces current)"}
+              </label>
+              <input
+                className={fieldCls}
+                list="admin-role-schools"
+                value={school}
+                onChange={(e) => setSchool(e.target.value)}
+                placeholder={hasSchool ? user.school : "Start typing a school name"}
+              />
+              <datalist id="admin-role-schools">
+                {schools.map((s) => (
+                  <option key={s.id} value={s.name} />
+                ))}
+              </datalist>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-lg bg-brand-purple px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
+              {busy ? "Saving..." : "Save role"}
+            </button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function UsersSection() {
+  const { user: currentUser } = useAuth();
+  const isSuperAdmin = (currentUser?.role ?? "").toLowerCase() === "admin";
   const [users, setUsers] = useState([]);
+  const [schools, setSchools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -334,6 +603,8 @@ function UsersSection() {
   const [province, setProvince] = useState("all");
   const [selected, setSelected] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [roleTarget, setRoleTarget] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -347,10 +618,23 @@ function UsersSection() {
       .finally(() => {
         if (active) setLoading(false);
       });
+    // Schools power the datalist in the invite / role-change modals. Only the
+    // super-admin sees those, so only fetch then; failure is non-fatal.
+    if (isSuperAdmin) {
+      apiGet("/schools")
+        .then((d) => {
+          if (active) setSchools(d.schools ?? []);
+        })
+        .catch(() => {});
+    }
     return () => {
       active = false;
     };
-  }, []);
+  }, [isSuperAdmin]);
+
+  const handleCreated = (user) => setUsers((prev) => [user, ...prev]);
+  const handleRoleChanged = (updated) =>
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)));
 
   const filtered = useMemo(
     () =>
@@ -409,7 +693,20 @@ function UsersSection() {
     URL.revokeObjectURL(url);
   };
   return (
-    <Panel title="Users">
+    <Panel
+      title="Users"
+      action={
+        isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => setInviteOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-purple px-3 py-1.5 text-xs font-bold text-white"
+          >
+            <Plus className="h-3.5 w-3.5" /> Invite User
+          </button>
+        )
+      }
+    >
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -430,6 +727,7 @@ function UsersSection() {
           <option>Teacher</option>
           <option>School Admin</option>
           <option>Programme Admin</option>
+          <option>Admin</option>
         </select>
         <select
           value={province}
@@ -506,6 +804,7 @@ function UsersSection() {
                 <th className="py-2 pr-4 font-bold">Role</th>
                 <th className="py-2 pr-4 font-bold">Province</th>
                 <th className="py-2 pr-4 font-bold">Status</th>
+                {isSuperAdmin && <th className="py-2 pr-4 font-bold">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -529,12 +828,46 @@ function UsersSection() {
                       {u.status}
                     </span>
                   </td>
+                  {isSuperAdmin && (
+                    <td className="py-2.5 pr-4">
+                      <button
+                        type="button"
+                        onClick={() => setRoleTarget(u)}
+                        disabled={u.id === currentUser?.id}
+                        title={
+                          u.id === currentUser?.id
+                            ? "You cannot change your own role"
+                            : "Change role"
+                        }
+                        className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-bold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                      >
+                        <Pencil className="h-3.5 w-3.5" /> Role
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {isSuperAdmin && (
+        <InviteUserModal
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          onCreated={handleCreated}
+          schools={schools}
+        />
+      )}
+      {isSuperAdmin && roleTarget && (
+        <RoleChangeModal
+          user={roleTarget}
+          onOpenChange={(v) => !v && setRoleTarget(null)}
+          onChanged={handleRoleChanged}
+          schools={schools}
+        />
+      )}
     </Panel>
   );
 }

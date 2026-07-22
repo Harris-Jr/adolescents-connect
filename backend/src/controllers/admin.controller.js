@@ -1,7 +1,10 @@
+import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { resolveSchool } from "../utils/school.js";
+import { validatePasswordBasic } from "../utils/passwordValidator.js";
 
 const prisma = new PrismaClient();
+const BCRYPT_SALT_ROUNDS = 12;
 
 const ROLE_LABEL = {
   LEARNER: "Learner",
@@ -13,6 +16,25 @@ const ROLE_LABEL = {
 const LABEL_TO_ROLE = Object.fromEntries(
   Object.entries(ROLE_LABEL).map(([role, label]) => [label, role])
 );
+const VALID_ROLES = Object.keys(ROLE_LABEL);
+
+// Fields selected for a user row + the shape the admin Users panel expects.
+const USER_ROW_SELECT = {
+  id: true, firstName: true, lastName: true, email: true, phone: true,
+  role: true, province: true, schoolName: true, isActive: true, createdAt: true,
+};
+function shapeUser(u) {
+  return {
+    id: u.id,
+    name: `${u.firstName} ${u.lastName}`.trim(),
+    email: u.email ?? u.phone,
+    role: ROLE_LABEL[u.role] ?? u.role,
+    province: u.province ?? "—",
+    school: u.schoolName ?? "—",
+    status: u.isActive ? "active" : "inactive",
+    joined: ymd(u.createdAt),
+  };
+}
 
 function ymd(date) {
   return date.toISOString().slice(0, 10);
@@ -57,24 +79,10 @@ export async function listUsers(req, res) {
     const rows = await prisma.user.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      select: {
-        id: true, firstName: true, lastName: true, email: true, phone: true,
-        role: true, province: true, schoolName: true, isActive: true, createdAt: true,
-      },
+      select: USER_ROW_SELECT,
     });
 
-    const users = rows.map((u) => ({
-      id: u.id,
-      name: `${u.firstName} ${u.lastName}`.trim(),
-      email: u.email ?? u.phone,
-      role: ROLE_LABEL[u.role] ?? u.role,
-      province: u.province ?? "—",
-      school: u.schoolName ?? "—",
-      status: u.isActive ? "active" : "inactive",
-      joined: ymd(u.createdAt),
-    }));
-
-    res.json({ users });
+    res.json({ users: rows.map(shapeUser) });
   } catch (err) {
     console.error("admin listUsers error:", err);
     res.status(500).json({ error: "Failed to fetch users" });
@@ -102,6 +110,122 @@ export async function updateUserStatus(req, res) {
     if (err.code === "P2025") return res.status(404).json({ error: "User not found" });
     console.error("admin updateUserStatus error:", err);
     res.status(500).json({ error: "Failed to update user" });
+  }
+}
+
+// POST /api/admin/users — create a user of any role (ADMIN only).
+// Closes the gap where elevated roles previously required direct DB access.
+// The admin sets an initial password and shares it out-of-band (no email
+// invite infra); the created account skips onboarding and is active at once.
+export async function createUser(req, res) {
+  try {
+    const b = req.body ?? {};
+    const firstName = String(b.firstName ?? "").trim();
+    const lastName = String(b.lastName ?? "").trim();
+    const email = b.email ? String(b.email).trim() : null;
+    const phone = b.phone ? String(b.phone).trim() : null;
+    const role = String(b.role ?? "").trim().toUpperCase();
+
+    if (!firstName || !lastName) {
+      return res.status(400).json({ error: "First and last names are required" });
+    }
+    if (!email && !phone) {
+      return res.status(400).json({ error: "Email or phone is required" });
+    }
+    if (!VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: "A valid role is required" });
+    }
+    if (!b.password) {
+      return res.status(400).json({ error: "An initial password is required" });
+    }
+    const pwCheck = validatePasswordBasic(b.password);
+    if (!pwCheck.isValid) {
+      return res.status(400).json({ error: pwCheck.errors[0], details: pwCheck.errors });
+    }
+
+    // A School Admin must be attached to a school, or their dashboard scopes
+    // to nothing.
+    const schoolNameInput = b.schoolName ?? b.school;
+    if (role === "SCHOOL_ADMIN" && !String(schoolNameInput ?? "").trim()) {
+      return res.status(400).json({ error: "A school is required for a School Admin" });
+    }
+
+    const school = await resolveSchool(prisma, schoolNameInput, {
+      province: b.province,
+      district: b.district,
+    });
+    const passwordHash = await bcrypt.hash(b.password, BCRYPT_SALT_ROUNDS);
+
+    const created = await prisma.user.create({
+      data: {
+        firstName,
+        lastName,
+        email,
+        phone,
+        passwordHash,
+        role,
+        schoolId: school?.id ?? null,
+        schoolName: school?.name ?? null,
+        province: b.province ? String(b.province).trim() : null,
+        district: b.district ? String(b.district).trim() : null,
+        onboardingDone: true,
+        isActive: true,
+      },
+      select: USER_ROW_SELECT,
+    });
+
+    res.status(201).json({ user: shapeUser(created) });
+  } catch (err) {
+    if (err.code === "P2002") {
+      return res.status(409).json({ error: "An account with this email or phone already exists" });
+    }
+    console.error("admin createUser error:", err);
+    res.status(500).json({ error: "Failed to create user" });
+  }
+}
+
+// PATCH /api/admin/users/:id/role — change an existing user's role (ADMIN
+// only). Kept separate from the shared status toggle so PROGRAMME_ADMIN's
+// activate/deactivate power is untouched.
+export async function changeUserRole(req, res) {
+  try {
+    const role = String(req.body?.role ?? "").trim().toUpperCase();
+    if (!VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: "A valid role is required" });
+    }
+    // Guard against an admin stripping their own powers mid-session.
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ error: "You cannot change your own role" });
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, schoolName: true },
+    });
+    if (!target) return res.status(404).json({ error: "User not found" });
+
+    const data = { role };
+    const schoolNameInput = req.body?.schoolName;
+    if (schoolNameInput && String(schoolNameInput).trim()) {
+      const school = await resolveSchool(prisma, schoolNameInput);
+      data.schoolId = school?.id ?? null;
+      data.schoolName = school?.name ?? null;
+    } else if (role === "SCHOOL_ADMIN" && !target.schoolName) {
+      return res.status(400).json({
+        error: "This user has no school. Provide a school to make them a School Admin.",
+      });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: req.params.id },
+      data,
+      select: USER_ROW_SELECT,
+    });
+    res.json({ user: shapeUser(updated) });
+  } catch (err) {
+    if (err.code === "P2025") return res.status(404).json({ error: "User not found" });
+    console.error("admin changeUserRole error:", err);
+    res.status(500).json({ error: "Failed to change user role" });
   }
 }
 

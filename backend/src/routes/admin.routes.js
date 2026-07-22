@@ -1,7 +1,9 @@
 import { Router } from "express";
 import {
   listUsers,
+  createUser,
   updateUserStatus,
+  changeUserRole,
   listSchools,
   createSchool,
   overview,
@@ -21,6 +23,9 @@ router.use(requireAuth, requireRole("ADMIN", "PROGRAMME_ADMIN"));
 router.get("/overview", overview);
 
 router.get("/users", listUsers);
+// Super-admin only: create users of any role + change an existing role.
+router.post("/users", requireRole("ADMIN"), createUser);
+router.patch("/users/:id/role", requireRole("ADMIN"), changeUserRole);
 router.patch("/users/:id", updateUserStatus);
 
 router.get("/schools", listSchools);

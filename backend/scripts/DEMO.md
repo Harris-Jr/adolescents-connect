@@ -15,10 +15,11 @@ all charts, leaderboards and tables fill from activity you perform live.
 | **UI signup** | LEARNER | 3–4 | Register |
 
 The 3 elevated roles are seeded because registration only ever produces
-LEARNER/TEACHER and there is no role-change endpoint. ADMIN and PROGRAMME_ADMIN
-have the same powers on every guarded route — keep both only to show the role
-split (e.g. ADMIN acts as the support-chat counsellor); otherwise
-PROGRAMME_ADMIN alone is enough.
+LEARNER/TEACHER. **ADMIN is the platform super-admin**: only ADMIN can invite/
+create users of any role and change an existing user's role (Users panel →
+*Invite User* / per-row *Role*). **PROGRAMME_ADMIN** keeps everything else —
+M&E, referral CRUD, content approval, ambassador review, live chat — but does
+**not** see user-invite or role-change. Keep both accounts to demo that split.
 
 ## 1. Provision (run from `backend/`)
 
@@ -64,6 +65,11 @@ Admin scoping links them together:
 - **"I Need Help" (one learner):** submit the form → admin gets the bell
   notification + the *Live Chat* pending badge → admin replies as counsellor →
   learner sees the reply in the same session.
+- **User management (optional, ADMIN only):** sign in as ADMIN → Users →
+  *Invite User* to create an account of any role (set an initial password and
+  share it directly), or per-row *Role* to change someone's role. Sign in as
+  PROGRAMME_ADMIN to confirm those controls are absent — demonstrates the
+  super-admin split.
 
 ## 4. Verify before the demo
 
