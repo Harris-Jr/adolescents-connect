@@ -25,6 +25,7 @@ const PILL =
 export function DashboardBottomNav({ items, active, onSelect }) {
   const [open, setOpen] = useState(false);
   const primary = items.slice(0, 3);
+  const rest = items.slice(3);
   const isActive = (item) => item.id === active;
 
   const pillItemClass = (item) =>
@@ -88,7 +89,7 @@ export function DashboardBottomNav({ items, active, onSelect }) {
             <DrawerTitle>Menu</DrawerTitle>
           </DrawerHeader>
           <div className="grid max-h-[65vh] gap-1 overflow-y-auto px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-            {items.map((item) => {
+            {rest.map((item) => {
               const Icon = item.icon;
               return item.to ? (
                 <DrawerClose asChild key={item.id}>
