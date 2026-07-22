@@ -26,6 +26,13 @@ import adminRoutes from "./routes/admin.routes.js";
 
 const app = express();
 
+// Behind nginx (reverse proxy on the VPS): trust the first proxy hop so
+// Express reads the real client IP from X-Forwarded-For. Without this,
+// express-rate-limit warns and keys every request by the proxy's IP, which
+// misidentifies all users as one and can trigger spurious 429s (seen during
+// login testing).
+app.set("trust proxy", 1);
+
 // Security middleware
 app.use(helmet());
 app.use(morgan("dev"));
