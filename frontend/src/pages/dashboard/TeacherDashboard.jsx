@@ -36,6 +36,7 @@ import { API_URL } from "@/lib/api";
 import { getAccessToken } from "@/contexts/AuthContext";
 import { UserMenu } from "@/components/UserMenu";
 import { DashboardBottomNav } from "@/components/DashboardBottomNav";
+import { AccountSettings } from "@/components/settings/AccountSettings";
 import { toast } from "sonner";
 const NAV = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -54,8 +55,6 @@ function TeacherDashboard() {
   const [collapsed, setCollapsed] = useState(false);
   const [section, setSection] = useState("overview");
   const firstName = user?.firstName ?? "Teacher";
-  const lastName = user?.lastName ?? "";
-  const name = `${firstName} ${lastName}`.trim() || "Teacher";
   const school = user?.schoolName ?? "Your School";
   const title = NAV.find((n) => n.id === section)?.label ?? "Overview";
   return (
@@ -147,7 +146,7 @@ function TeacherDashboard() {
           {section === "activities" && <ClassroomActivities />}
           {section === "training" && <TrainingResources />}
           {section === "reports" && <Reports />}
-          {section === "settings" && <TeacherSettings name={name} school={school} />}
+          {section === "settings" && <AccountSettings />}
         </main>
       </div>
 
@@ -1646,25 +1645,6 @@ function Reports() {
           </table>
         </div>
       )}
-    </div>
-  );
-}
-/* ---------------- Settings ---------------- */
-function TeacherSettings({ name, school }) {
-  return (
-    <div className="max-w-lg space-y-4 rounded-2xl bg-card p-6 shadow-sm">
-      <Field label="Full Name">
-        <input className={inputCls} defaultValue={name} />
-      </Field>
-      <Field label="School">
-        <input className={inputCls} defaultValue={school} />
-      </Field>
-      <Field label="Email">
-        <input className={inputCls} defaultValue="teacher@alinks.org" />
-      </Field>
-      <button className="rounded-xl bg-brand-navy px-5 py-2.5 text-sm font-bold text-white">
-        Save Changes
-      </button>
     </div>
   );
 }

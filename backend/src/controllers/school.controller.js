@@ -85,6 +85,73 @@ export async function getSchoolClubs(req, res) {
   }
 }
 
+// GET /api/school/profile — the requesting School Admin's own school record.
+// Requires a linked schoolId (name-only accounts can't be edited safely).
+export async function getSchoolProfile(req, res) {
+  try {
+    const scope = await getSchoolScope(req.user.id);
+    if (!scope?.schoolId) {
+      return res.status(400).json({ error: "No linked school on your account" });
+    }
+    const school = await prisma.school.findUnique({
+      where: { id: scope.schoolId },
+      select: { id: true, name: true, province: true, district: true },
+    });
+    if (!school) return res.status(404).json({ error: "School not found" });
+    res.json({ school });
+  } catch (err) {
+    console.error("getSchoolProfile error:", err);
+    res.status(500).json({ error: "Failed to fetch school profile" });
+  }
+}
+
+// PATCH /api/school/profile — edit the School Admin's own school. A rename
+// cascades to the denormalized User.schoolName / Club.school copies so display
+// names stay in sync. School.name is unique → a collision returns 409.
+export async function updateSchoolProfile(req, res) {
+  try {
+    const scope = await getSchoolScope(req.user.id);
+    if (!scope?.schoolId) {
+      return res.status(400).json({ error: "No linked school on your account" });
+    }
+
+    const b = req.body ?? {};
+    const data = {};
+    if (b.name !== undefined) {
+      if (!String(b.name).trim()) return res.status(400).json({ error: "School name cannot be blank" });
+      data.name = String(b.name).trim();
+    }
+    if (b.province !== undefined) data.province = b.province ? String(b.province).trim() : null;
+    if (b.district !== undefined) data.district = b.district ? String(b.district).trim() : null;
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    // Update the School row and, on rename, the denormalized copies together.
+    const [school] = await prisma.$transaction([
+      prisma.school.update({
+        where: { id: scope.schoolId },
+        data,
+        select: { id: true, name: true, province: true, district: true },
+      }),
+      ...(data.name
+        ? [
+            prisma.user.updateMany({ where: { schoolId: scope.schoolId }, data: { schoolName: data.name } }),
+            prisma.club.updateMany({ where: { schoolId: scope.schoolId }, data: { school: data.name } }),
+          ]
+        : []),
+    ]);
+
+    res.json({ school });
+  } catch (err) {
+    if (err.code === "P2002") {
+      return res.status(409).json({ error: "A school with that name already exists" });
+    }
+    console.error("updateSchoolProfile error:", err);
+    res.status(500).json({ error: "Failed to update school" });
+  }
+}
+
 export async function getSchoolStats(req, res) {
   try {
     const scope = await getSchoolScope(req.user.id);

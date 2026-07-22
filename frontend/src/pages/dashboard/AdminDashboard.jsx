@@ -47,6 +47,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AdminLayout, StatCard, Panel } from "@/components/AdminLayout";
+import { AccountSettings } from "@/components/settings/AccountSettings";
 import { API_URL, apiGet, apiPatch, apiPost, apiDelete } from "@/lib/api";
 import { useAuth, getAccessToken } from "@/contexts/AuthContext";
 import { PENDING_CONTENT, SENT_NOTIFICATIONS, PROVINCES } from "@/lib/admin-data";
@@ -146,11 +147,20 @@ function AdminDashboard() {
       {active === "reports" && <ReportsSection />}
       {active === "chat" && <ChatSection />}
       {active === "settings" && (
-        <Panel title="Settings">
-          <p className="text-sm text-muted-foreground">
-            Programme configuration settings are coming soon.
-          </p>
-        </Panel>
+        <div className="space-y-6">
+          <AccountSettings />
+          <section className="max-w-2xl rounded-2xl border border-dashed border-border bg-muted/30 p-6">
+            <h2 className="text-base font-extrabold text-brand-navy">Platform configuration</h2>
+            <p className="mt-1 text-sm font-semibold text-muted-foreground">
+              Coming in a future release
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Programme-wide settings (season name, point values, and similar) will
+              live here once there is a backing configuration store. Nothing is
+              configurable yet — this section is intentionally a placeholder.
+            </p>
+          </section>
+        </div>
       )}
     </AdminLayout>
   );

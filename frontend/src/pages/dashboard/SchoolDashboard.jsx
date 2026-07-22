@@ -10,6 +10,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { AdminLayout, StatCard, Panel } from "@/components/AdminLayout";
+import { AccountSettings } from "@/components/settings/AccountSettings";
+import { SchoolProfileSettings } from "@/components/settings/SchoolProfileSettings";
 import { useAuth, getAccessToken } from "@/contexts/AuthContext";
 import { API_URL } from "@/lib/api";
 import { toast } from "sonner";
@@ -383,11 +385,10 @@ function SchoolDashboard() {
       )}
 
       {active === "settings" && (
-        <Panel title="Settings">
-          <p className="text-sm text-muted-foreground">
-            School profile and account settings are coming soon.
-          </p>
-        </Panel>
+        <div className="space-y-6">
+          <SchoolProfileSettings />
+          <AccountSettings />
+        </div>
       )}
     </AdminLayout>
   );

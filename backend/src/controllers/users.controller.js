@@ -1,6 +1,12 @@
+import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { resolveSchool } from "../utils/school.js";
+import {
+  validatePasswordBasic,
+  validatePasswordMatch,
+} from "../utils/passwordValidator.js";
 const prisma = new PrismaClient();
+const BCRYPT_SALT_ROUNDS = 12;
 
 export async function listUsers(_req, res) {
   res.json({ users: [] });
@@ -36,12 +42,25 @@ export async function getMyPoints(req, res) {
 export async function updateMe(req, res) {
   try {
     const {
+      firstName, lastName,
       gender, grade, schoolName, subjects, staffId, onboardingDone,
       dateOfBirth, province, district, disabilityStatus,
       avatar, interests,
     } = req.body;
 
     const data = {};
+    if (firstName !== undefined) {
+      if (!String(firstName).trim()) {
+        return res.status(400).json({ error: "First name cannot be blank" });
+      }
+      data.firstName = String(firstName).trim();
+    }
+    if (lastName !== undefined) {
+      if (!String(lastName).trim()) {
+        return res.status(400).json({ error: "Last name cannot be blank" });
+      }
+      data.lastName = String(lastName).trim();
+    }
     if (gender !== undefined) data.gender = gender;
     if (grade !== undefined) data.grade = grade ? parseInt(grade) : null;
     if (schoolName !== undefined) {
@@ -85,5 +104,43 @@ export async function updateMe(req, res) {
   } catch (err) {
     console.error("updateMe error:", err);
     res.status(500).json({ error: "Failed to update profile" });
+  }
+}
+
+// PATCH /api/users/me/password — authenticated password change. Verifies the
+// current password before setting a new one. (Token-based reset for
+// forgotten passwords lives separately in auth.)
+export async function changePassword(req, res) {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body ?? {};
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: "Current, new and confirmation passwords are required" });
+    }
+
+    const strength = validatePasswordBasic(newPassword);
+    if (!strength.isValid) {
+      return res.status(400).json({ error: strength.errors[0], details: strength.errors });
+    }
+    const match = validatePasswordMatch(newPassword, confirmPassword);
+    if (!match.isValid) {
+      return res.status(400).json({ error: match.error });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { passwordHash: true },
+    });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!ok) return res.status(400).json({ error: "Current password is incorrect" });
+
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+    await prisma.user.update({ where: { id: req.user.id }, data: { passwordHash } });
+
+    res.json({ message: "Password updated" });
+  } catch (err) {
+    console.error("changePassword error:", err);
+    res.status(500).json({ error: "Failed to change password" });
   }
 }

@@ -7,7 +7,7 @@ import { API_URL, apiGet } from "@/lib/api";
 import { useProgress } from "@/contexts/ProgressContext";
 import { FloatingInput } from "@/components/forms/FloatingInput";
 import { FloatingSelect } from "@/components/forms/FloatingSelect";
-import { PasswordInput } from "@/components/forms/PasswordInput";
+import { ChangePasswordForm } from "@/components/settings/AccountSettings";
 import {
   PROVINCES,
   DISTRICTS_BY_PROVINCE,
@@ -241,17 +241,9 @@ function Profile() {
           </section>
           <section className="rounded-3xl bg-card p-6 shadow-sm">
             <h2 className="text-lg font-extrabold text-brand-navy">Change Password</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <PasswordInput label="New password" autoComplete="new-password" />
-              <PasswordInput label="Confirm password" autoComplete="new-password" />
+            <div className="mt-4">
+              <ChangePasswordForm />
             </div>
-            <button
-              type="button"
-              onClick={() => toast.success("Password updated")}
-              className="mt-4 rounded-xl border border-border px-4 py-2 text-sm font-bold hover:bg-muted"
-            >
-              Update Password
-            </button>
           </section>
           <section className="rounded-3xl bg-card p-6 shadow-sm">
             <h2 className="text-lg font-extrabold text-brand-navy">My Certificates</h2>
