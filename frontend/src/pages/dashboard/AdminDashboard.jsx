@@ -604,6 +604,10 @@ function RoleChangeModal({ user, onOpenChange, onChanged, schools }) {
 function UsersSection() {
   const { user: currentUser } = useAuth();
   const isSuperAdmin = (currentUser?.role ?? "").toLowerCase() === "admin";
+  const isProgrammeAdmin = (currentUser?.role ?? "").toLowerCase() === "programme_admin";
+  // A Programme Admin cannot change an Admin's status, so they can't select
+  // Admin rows for the bulk activate/deactivate action either.
+  const canSelect = (u) => !(isProgrammeAdmin && u.role === "Admin");
   const [users, setUsers] = useState([]);
   const [schools, setSchools] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -657,8 +661,9 @@ function UsersSection() {
       }),
     [users, search, role, province],
   );
-  const allSelected = filtered.length > 0 && filtered.every((u) => selected.includes(u.id));
-  const toggleAll = () => setSelected(allSelected ? [] : filtered.map((u) => u.id));
+  const selectable = filtered.filter(canSelect);
+  const allSelected = selectable.length > 0 && selectable.every((u) => selected.includes(u.id));
+  const toggleAll = () => setSelected(allSelected ? [] : selectable.map((u) => u.id));
   const toggleOne = (id) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const setStatus = async (status) => {
@@ -825,6 +830,9 @@ function UsersSection() {
                       type="checkbox"
                       checked={selected.includes(u.id)}
                       onChange={() => toggleOne(u.id)}
+                      disabled={!canSelect(u)}
+                      title={canSelect(u) ? undefined : "Programme Admins cannot change an Admin account"}
+                      className="disabled:cursor-not-allowed disabled:opacity-40"
                     />
                   </td>
                   <td className="py-2.5 pr-4 font-semibold text-brand-navy">{u.name}</td>

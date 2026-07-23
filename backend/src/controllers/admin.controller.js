@@ -100,6 +100,18 @@ export async function updateUserStatus(req, res) {
       return res.status(400).json({ error: "You cannot deactivate your own account" });
     }
 
+    const target = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, role: true },
+    });
+    if (!target) return res.status(404).json({ error: "User not found" });
+
+    // ADMIN is the platform super-admin: a Programme Admin must not be able to
+    // change the active status of an Admin account (either direction).
+    if (req.user.role === "PROGRAMME_ADMIN" && target.role === "ADMIN") {
+      return res.status(403).json({ error: "Programme Admins cannot change the status of an Admin account" });
+    }
+
     const user = await prisma.user.update({
       where: { id: req.params.id },
       data: { isActive },
